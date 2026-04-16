@@ -1,28 +1,43 @@
 "use client";
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useState, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 
-const finalistes = [
-  "Kokoro Fujii", "Tomoa Narasaki", "Colin Duffy", "Sean Bailey",
-  "Janja Garnbret", "Natalia Grossman", "Oriane Bertone", "Miho Nonaka"
-];
-
-export default function PodiumPage() {
+function PodiumContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const competition = searchParams.get("competition") || "keqiao-2026";
+  const genre = searchParams.get("genre") || "hommes";
+  const [finalistes, setFinalistes] = useState<string[]>([]);
   const [gold, setGold] = useState<string | null>(null);
   const [silver, setSilver] = useState<string | null>(null);
   const [bronze, setBronze] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [userId, setUserId] = useState<string | null>(null);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      if (!data.session) router.push("/login");
-      else setUserId(data.session.user.id);
+    supabase.auth.getSession().then(async ({ data }) => {
+      if (!data.session) { router.push("/login"); return; }
+      setUserId(data.session.user.id);
+
+      const { data: resultats } = await supabase
+        .from("resultats_officiels")
+        .select("*")
+        .eq("competition_id", competition)
+        .eq("genre", genre)
+        .single();
+
+      if (resultats) {
+        const liste = [
+          resultats.rank1, resultats.rank2, resultats.rank3, resultats.rank4,
+          resultats.rank5, resultats.rank6, resultats.rank7, resultats.rank8
+        ].filter(Boolean);
+        setFinalistes(liste);
+      }
+      setLoading(false);
     });
-  }, [router]);
+  }, [router, competition, genre]);
 
   const selectPodium = (name: string) => {
     if (gold === name) { setGold(null); return; }
@@ -42,73 +57,99 @@ export default function PodiumPage() {
 
   const valider = async () => {
     if (!userId || !gold || !silver || !bronze) return;
-    setLoading(true);
     await supabase.from("picks_phase2_temp").upsert({
       user_id: userId,
-      competition_id: "00000000-0000-0000-0000-000000000001",
+      competition_id: `${competition}-${genre}`,
       gold_athlete: gold,
       silver_athlete: silver,
       bronze_athlete: bronze,
     }, { onConflict: "user_id,competition_id" });
     setSaved(true);
-    setLoading(false);
     setTimeout(() => router.push("/dashboard"), 1500);
   };
 
+  const compName = competition.split("-")[0].charAt(0).toUpperCase() + competition.split("-")[0].slice(1);
+
+  if (loading) return (
+    <main className="min-h-screen bg-white flex items-center justify-center">
+      <p className="text-gray-400 text-sm">Chargement...</p>
+    </main>
+  );
+
   return (
-    <main className="min-h-screen bg-gray-950 text-white p-8">
-      <div className="max-w-2xl mx-auto">
-        <button onClick={() => router.push("/dashboard")} className="text-gray-400 hover:text-white mb-6 text-sm">
+    <main className="min-h-screen bg-white text-gray-900">
+      <div className="max-w-2xl mx-auto px-6 py-12">
+        <button onClick={() => router.push("/dashboard")}
+          className="text-sm text-gray-400 hover:text-gray-900 transition mb-8">
           ← Retour
         </button>
-        <h1 className="text-2xl font-bold mb-1">Phase 2 — Choisis ton podium</h1>
-        <p className="text-gray-400 mb-4">Clique dans l'ordre : 1er → 2ème → 3ème</p>
 
-        <div className="flex gap-4 mb-6">
-          <div className="flex-1 bg-gray-900 border border-yellow-500/40 rounded-xl p-3 text-center">
-            <div className="text-2xl mb-1">🥇</div>
-            <div className="text-sm font-semibold text-yellow-400">{gold ?? "—"}</div>
-          </div>
-          <div className="flex-1 bg-gray-900 border border-gray-500/40 rounded-xl p-3 text-center">
-            <div className="text-2xl mb-1">🥈</div>
-            <div className="text-sm font-semibold text-gray-300">{silver ?? "—"}</div>
-          </div>
-          <div className="flex-1 bg-gray-900 border border-orange-500/40 rounded-xl p-3 text-center">
-            <div className="text-2xl mb-1">🥉</div>
-            <div className="text-sm font-semibold text-orange-400">{bronze ?? "—"}</div>
-          </div>
+        <div className="mb-8">
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-1">
+            {compName} 2026 · {genre === "hommes" ? "Hommes" : "Femmes"}
+          </p>
+          <h1 className="text-2xl font-semibold">Phase 2 — Ton podium</h1>
+          <p className="text-sm text-gray-400 mt-1">Clique dans l'ordre : 1er → 2ème → 3ème</p>
         </div>
 
-        <div className="grid grid-cols-2 gap-3 mb-8">
-          {finalistes.map((name) => {
-            const label = getLabel(name);
-            return (
-              <button key={name} onClick={() => selectPodium(name)}
-                className={`p-4 rounded-xl border text-left font-medium transition flex items-center justify-between ${
-                  label
-                    ? "bg-blue-600 border-blue-500 text-white"
-                    : "bg-gray-900 border-gray-700 text-gray-300 hover:border-gray-500"
-                }`}>
-                <span>{name}</span>
-                {label && <span className="text-xl">{label}</span>}
+        {finalistes.length === 0 ? (
+          <div className="border border-gray-100 rounded-2xl p-10 text-center">
+            <p className="text-gray-500 mb-2">Les finalistes ne sont pas encore disponibles.</p>
+            <p className="text-gray-300 text-sm">L'admin doit d'abord sauvegarder les 8 finalistes officiels.</p>
+          </div>
+        ) : (
+          <>
+            <div className="flex gap-3 mb-8">
+              {[
+                { emoji: "🥇", value: gold, color: "border-amber-200 bg-amber-50 text-amber-600" },
+                { emoji: "🥈", value: silver, color: "border-gray-200 bg-gray-50 text-gray-600" },
+                { emoji: "🥉", value: bronze, color: "border-orange-200 bg-orange-50 text-orange-600" },
+              ].map(({ emoji, value, color }, i) => (
+                <div key={i} className={`flex-1 border rounded-xl p-3 text-center ${color}`}>
+                  <p className="text-xl mb-1">{emoji}</p>
+                  <p className="text-xs font-semibold truncate">{value ?? "—"}</p>
+                </div>
+              ))}
+            </div>
+
+            <div className="divide-y divide-gray-100 border border-gray-100 rounded-2xl overflow-hidden mb-8">
+              {finalistes.map((name) => {
+                const label = getLabel(name);
+                return (
+                  <button key={name} onClick={() => selectPodium(name)}
+                    className={`w-full flex items-center justify-between px-5 py-4 transition text-left ${
+                      label ? "bg-gray-900 text-white" : "bg-white hover:bg-gray-50 text-gray-900"
+                    }`}>
+                    <span className="font-medium text-sm">{name}</span>
+                    {label && <span className="text-xl">{label}</span>}
+                  </button>
+                );
+              })}
+            </div>
+
+            {gold && silver && bronze && !saved && (
+              <button onClick={valider}
+                className="w-full h-11 bg-gray-900 hover:bg-gray-700 text-white rounded-xl font-semibold text-sm transition">
+                Valider mon podium →
               </button>
-            );
-          })}
-        </div>
+            )}
 
-        {gold && silver && bronze && !saved && (
-          <button onClick={valider} disabled={loading}
-            className="w-full h-12 bg-blue-600 hover:bg-blue-500 rounded-xl font-semibold text-lg disabled:opacity-60">
-            {loading ? "Enregistrement..." : "Valider mon podium"}
-          </button>
-        )}
-
-        {saved && (
-          <div className="w-full h-12 bg-green-700 rounded-xl font-semibold text-lg flex items-center justify-center">
-            ✓ Podium enregistré ! Retour au dashboard...
-          </div>
+            {saved && (
+              <div className="w-full h-11 bg-green-50 border border-green-200 text-green-700 rounded-xl font-semibold text-sm flex items-center justify-center">
+                ✓ Podium enregistré !
+              </div>
+            )}
+          </>
         )}
       </div>
     </main>
+  );
+}
+
+export default function PodiumPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-white flex items-center justify-center text-gray-400 text-sm">Chargement...</div>}>
+      <PodiumContent />
+    </Suspense>
   );
 }
