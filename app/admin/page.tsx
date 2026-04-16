@@ -125,7 +125,7 @@ export default function AdminPage() {
     if (loading) return;
     loadResultats();
     loadVoters();
-  }, [selectedComp, selectedGenre, loading]);
+  }, [selectedComp, selectedGenre, loading, tab]);
 
   useEffect(() => {
     if (loading || tab !== "points") return;
@@ -352,6 +352,10 @@ export default function AdminPage() {
               ))}
             </div>
             <div className="flex gap-2 mb-6">
+            <button onClick={loadVoters}
+  className="text-xs text-gray-400 hover:text-gray-900 border border-gray-200 rounded-full px-3 py-1.5 transition ml-auto">
+  🔄 Rafraîchir
+</button>
               {["hommes", "femmes"].map(g => (
                 <button key={g} onClick={() => setSelectedGenre(g)}
                   className={`text-sm font-medium rounded-full px-4 py-1.5 transition ${selectedGenre === g ? "bg-gray-900 text-white" : "border border-gray-200 text-gray-500"}`}>
