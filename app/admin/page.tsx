@@ -49,16 +49,7 @@ function getRankingBonus(ranking: number): number {
   if (ranking <= 10) return 2;
   if (ranking <= 25) return 4;
   if (ranking <= 50) return 7;
-  if (ranking <= 100) return 12;
   return 12;
-}
-
-function getPhase2BasePoints(predicted: string, actual: string, position: string): number {
-  if (predicted !== actual) return 0;
-  if (position === "gold") return 5;
-  if (position === "silver") return 3;
-  if (position === "bronze") return 2;
-  return 0;
 }
 
 function getRankingBonusP2(ranking: number): number {
@@ -71,6 +62,8 @@ function getRankingBonusP2(ranking: number): number {
 
 export default function AdminPage() {
   const router = useRouter();
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [selectedComp, setSelectedComp] = useState("keqiao-2026");
   const [selectedGenre, setSelectedGenre] = useState("hommes");
   const [finalistes, setFinalistes] = useState(["","","","","","","",""]);
@@ -80,10 +73,53 @@ export default function AdminPage() {
   const [message, setMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      if (!data.session) router.push("/login");
+    supabase.auth.getSession().then(async ({ data }) => {
+      if (!data.session) { router.push("/login"); return; }
+      
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("is_admin")
+        .eq("id", data.session.user.id)
+        .single();
+
+      if (!profile?.is_admin) {
+        router.push("/dashboard");
+        return;
+      }
+      setIsAdmin(true);
+      setLoading(false);
     });
   }, [router]);
+
+  useEffect(() => {
+    if (!isAdmin) return;
+    loadResultats();
+  }, [selectedComp, selectedGenre, isAdmin]);
+
+  const loadResultats = async () => {
+    const { data } = await supabase
+      .from("resultats_officiels")
+      .select("*")
+      .eq("competition_id", selectedComp)
+      .eq("genre", selectedGenre)
+      .single();
+
+    if (data) {
+      setFinalistes([
+        data.rank1 || "", data.rank2 || "", data.rank3 || "",
+        data.rank4 || "", data.rank5 || "", data.rank6 || "",
+        data.rank7 || "", data.rank8 || ""
+      ]);
+      setPodium({
+        gold: data.podium_gold || "",
+        silver: data.podium_silver || "",
+        bronze: data.podium_bronze || "",
+      });
+    } else {
+      setFinalistes(["","","","","","","",""]);
+      setPodium({ gold: "", silver: "", bronze: "" });
+    }
+  };
 
   const saveFinalistes = async () => {
     setSaving(true);
@@ -93,6 +129,9 @@ export default function AdminPage() {
       rank1: finalistes[0], rank2: finalistes[1], rank3: finalistes[2],
       rank4: finalistes[3], rank5: finalistes[4], rank6: finalistes[5],
       rank7: finalistes[6], rank8: finalistes[7],
+      podium_gold: podium.gold,
+      podium_silver: podium.silver,
+      podium_bronze: podium.bronze,
     }, { onConflict: "competition_id,genre" });
     setSaving(false);
     setMessage("✓ Résultats sauvegardés !");
@@ -103,9 +142,9 @@ export default function AdminPage() {
     setCalculating(true);
     setMessage("Calcul en cours...");
 
-    const gold = podium.gold || finalistes[0];
-    const silver = podium.silver || finalistes[1];
-    const bronze = podium.bronze || finalistes[2];
+    const gold = podium.gold;
+    const silver = podium.silver;
+    const bronze = podium.bronze;
     const top8 = finalistes.filter(f => f.trim() !== "");
 
     const { data: allPicks1 } = await supabase
@@ -127,24 +166,19 @@ export default function AdminPage() {
       let phase1 = 0;
       for (const pick of userPicks1) {
         if (top8.includes(pick)) {
-          const ranking = worldRankings[pick] || 999;
-          phase1 += getRankingBonus(ranking);
+          phase1 += getRankingBonus(worldRankings[pick] || 999);
         }
       }
 
       let phase2 = 0;
-      if (userPick2) {
-        const goldRank = worldRankings[gold] || 999;
-        const silverRank = worldRankings[silver] || 999;
-        const bronzeRank = worldRankings[bronze] || 999;
-
-        if (userPick2.gold_athlete === gold) phase2 += 5 + getRankingBonusP2(goldRank);
+      if (userPick2 && gold && silver && bronze) {
+        if (userPick2.gold_athlete === gold) phase2 += 5 + getRankingBonusP2(worldRankings[gold] || 999);
         else if ([gold, silver, bronze].includes(userPick2.gold_athlete)) phase2 += 1;
 
-        if (userPick2.silver_athlete === silver) phase2 += 3 + getRankingBonusP2(silverRank);
+        if (userPick2.silver_athlete === silver) phase2 += 3 + getRankingBonusP2(worldRankings[silver] || 999);
         else if ([gold, silver, bronze].includes(userPick2.silver_athlete)) phase2 += 1;
 
-        if (userPick2.bronze_athlete === bronze) phase2 += 2 + getRankingBonusP2(bronzeRank);
+        if (userPick2.bronze_athlete === bronze) phase2 += 2 + getRankingBonusP2(worldRankings[bronze] || 999);
         else if ([gold, silver, bronze].includes(userPick2.bronze_athlete)) phase2 += 1;
       }
 
@@ -161,6 +195,12 @@ export default function AdminPage() {
     setCalculating(false);
     setMessage(`✓ Scores calculés pour ${userIds.length} joueurs !`);
   };
+
+  if (loading) return (
+    <main className="min-h-screen bg-white flex items-center justify-center">
+      <p className="text-gray-400 text-sm">Vérification des droits...</p>
+    </main>
+  );
 
   return (
     <main className="min-h-screen bg-white text-gray-900">
@@ -181,7 +221,7 @@ export default function AdminPage() {
           </div>
         )}
 
-        <div className="flex gap-2 mb-6">
+        <div className="flex flex-wrap gap-2 mb-4">
           {competitions.map(c => (
             <button key={c.id} onClick={() => setSelectedComp(c.id)}
               className={`text-sm font-medium rounded-full px-3 py-1.5 transition ${selectedComp === c.id ? "bg-gray-900 text-white" : "border border-gray-200 text-gray-500 hover:bg-gray-50"}`}>
@@ -201,10 +241,9 @@ export default function AdminPage() {
           </button>
         </div>
 
-        <div className="border border-gray-100 rounded-2xl overflow-hidden mb-6">
+        <div className="border border-gray-100 rounded-2xl overflow-hidden mb-4">
           <div className="px-5 py-4 border-b border-gray-100 bg-gray-50">
             <p className="text-sm font-semibold text-gray-700">Top 8 finalistes officiels</p>
-            <p className="text-xs text-gray-400 mt-1">Entre les noms exactement comme dans l'app</p>
           </div>
           <div className="p-5 grid gap-3">
             {finalistes.map((f, i) => (
@@ -218,12 +257,7 @@ export default function AdminPage() {
           </div>
         </div>
 
-        <button onClick={saveFinalistes} disabled={saving}
-          className="w-full h-11 border border-gray-200 hover:bg-gray-50 rounded-xl text-sm font-semibold transition mb-8 disabled:opacity-60">
-          {saving ? "Sauvegarde..." : "Sauvegarder les finalistes"}
-        </button>
-
-        <div className="border border-gray-100 rounded-2xl overflow-hidden mb-6">
+        <div className="border border-gray-100 rounded-2xl overflow-hidden mb-4">
           <div className="px-5 py-4 border-b border-gray-100 bg-gray-50">
             <p className="text-sm font-semibold text-gray-700">Podium officiel</p>
           </div>
@@ -243,6 +277,11 @@ export default function AdminPage() {
             ))}
           </div>
         </div>
+
+        <button onClick={saveFinalistes} disabled={saving}
+          className="w-full h-11 border border-gray-200 hover:bg-gray-50 rounded-xl text-sm font-semibold transition mb-3 disabled:opacity-60">
+          {saving ? "Sauvegarde..." : "Sauvegarder tout"}
+        </button>
 
         <button onClick={calculateScores} disabled={calculating}
           className="w-full h-11 bg-gray-900 hover:bg-gray-700 text-white rounded-xl text-sm font-semibold transition disabled:opacity-60">
