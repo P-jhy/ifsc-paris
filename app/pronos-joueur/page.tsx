@@ -3,6 +3,20 @@ import { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 
+const competitions = [
+  { id: "keqiao-2026", label: "Keqiao" },
+  { id: "berne-2026", label: "Berne" },
+  { id: "madrid-2026", label: "Madrid" },
+  { id: "prague-2026", label: "Prague" },
+  { id: "innsbruck-2026", label: "Innsbruck" },
+  { id: "saltlake-2026", label: "Salt Lake City" },
+] as const;
+
+const genres = [
+  { id: "hommes", label: "Hommes" },
+  { id: "femmes", label: "Femmes" },
+] as const;
+
 type Pick2 = {
   gold_athlete: string;
   silver_athlete: string;
@@ -25,9 +39,18 @@ function PronOsJoueurContent() {
 
   const compName = competition.split("-")[0].charAt(0).toUpperCase() + competition.split("-")[0].slice(1);
 
+  const navigateWith = (nextCompetition: string, nextGenre: string) => {
+    const params = new URLSearchParams();
+    if (userId) params.set("user", userId);
+    params.set("competition", nextCompetition);
+    params.set("genre", nextGenre);
+    router.push(`/pronos-joueur?${params.toString()}`);
+  };
+
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data }) => {
       if (!data.session) { router.push("/login"); return; }
+      if (!userId) { router.back(); return; }
 
       const { data: profile } = await supabase
         .from("profiles")
@@ -83,6 +106,52 @@ function PronOsJoueurContent() {
           className="text-sm text-gray-400 hover:text-gray-900 transition mb-8">
           ← Retour
         </button>
+
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-8">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs font-semibold text-gray-400 uppercase tracking-widest">
+              Compétition
+            </span>
+            <div className="flex flex-wrap gap-2">
+              {competitions.map((c) => (
+                <button
+                  key={c.id}
+                  type="button"
+                  onClick={() => navigateWith(c.id, genre)}
+                  className={`text-sm font-medium rounded-full px-4 py-2 transition border ${
+                    competition === c.id
+                      ? "bg-gray-900 text-white border-gray-900"
+                      : "text-gray-900 border-gray-200 hover:bg-gray-50"
+                  }`}
+                >
+                  {c.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-semibold text-gray-400 uppercase tracking-widest">
+              Genre
+            </span>
+            <div className="flex items-center gap-2">
+              {genres.map((g) => (
+                <button
+                  key={g.id}
+                  type="button"
+                  onClick={() => navigateWith(competition, g.id)}
+                  className={`text-sm font-medium rounded-full px-4 py-2 transition border ${
+                    genre === g.id
+                      ? "bg-gray-900 text-white border-gray-900"
+                      : "text-gray-900 border-gray-200 hover:bg-gray-50"
+                  }`}
+                >
+                  {g.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
 
         <div className="flex items-center gap-4 mb-8">
           {avatarUrl ? (
