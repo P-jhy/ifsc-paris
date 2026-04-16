@@ -150,17 +150,40 @@ export default function AdminPage() {
   };
 
   const loadVoters = async () => {
-    const { data: p1 } = await supabase.from("picks_phase1_temp").select("user_id").eq("competition_id", `${selectedComp}-${selectedGenre}`);
-    const { data: p2 } = await supabase.from("picks_phase2_temp").select("user_id").eq("competition_id", `${selectedComp}-${selectedGenre}`);
+    const { data: p1 } = await supabase
+      .from("picks_phase1_temp")
+      .select("user_id")
+      .eq("competition_id", `${selectedComp}-${selectedGenre}`);
+    
+    const { data: p2 } = await supabase
+      .from("picks_phase2_temp")
+      .select("user_id")
+      .eq("competition_id", `${selectedComp}-${selectedGenre}`);
+    
+    const { data: chosenProps } = await supabase
+      .from("chosen_one_proposals")
+      .select("user_id, athlete_name")
+      .eq("competition_id", selectedComp);
+  
+    const { data: freshProfiles } = await supabase
+      .from("profiles")
+      .select("id, username");
+  
+    const getName = (id: string) => 
+      freshProfiles?.find(p => p.id === id)?.username || id.substring(0, 8);
+  
     const p1Ids = [...new Set(p1?.map(p => p.user_id) || [])];
     const p2Ids = [...new Set(p2?.map(p => p.user_id) || [])];
-    const getName = (id: string) => profiles.find(p => p.id === id)?.username || id.substring(0, 8);
-    const { data: chosenProps } = await supabase.from("chosen_one_proposals").select("user_id, athlete_name").eq("competition_id", selectedComp);
-    const chosenList: ChosenProp[] = (chosenProps || []).map(p => ({
-      username: profiles.find(pr => pr.id === p.user_id)?.username || "?",
+    const chosenList = (chosenProps || []).map(p => ({
+      username: getName(p.user_id),
       athlete: p.athlete_name,
     }));
-    setVoters({ p1: p1Ids.map(getName), p2: p2Ids.map(getName), chosen: chosenList });
+  
+    setVoters({ 
+      p1: p1Ids.map(getName), 
+      p2: p2Ids.map(getName), 
+      chosen: chosenList 
+    });
   };
 
   const saveFinalistes = async () => {
