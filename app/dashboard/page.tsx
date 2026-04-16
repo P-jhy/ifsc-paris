@@ -41,8 +41,6 @@ export default function Dashboard() {
   return (
     <main className="min-h-screen bg-white text-gray-900">
       <div className="max-w-2xl mx-auto px-6 py-12">
-
-        {/* Header */}
         <div className="flex items-center justify-between mb-16">
           <div>
             <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-1">IFSC Boulder 2026</p>
@@ -54,6 +52,10 @@ export default function Dashboard() {
               className="text-sm font-medium text-gray-900 border border-gray-200 rounded-full px-4 py-2 hover:bg-gray-50 transition">
               Classement
             </button>
+            <button onClick={() => router.push("/admin")}
+              className="text-sm font-medium text-gray-900 border border-gray-200 rounded-full px-4 py-2 hover:bg-gray-50 transition">
+              Admin
+            </button>
             <button onClick={signOut}
               className="text-sm font-medium text-gray-400 hover:text-gray-900 transition">
               Quitter
@@ -61,7 +63,6 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Saison */}
         <div className="mb-10">
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-lg font-semibold text-gray-900">Saison 2026</h2>
@@ -106,6 +107,11 @@ export default function Dashboard() {
                       }`}>
                       {pickedF ? "✓ F" : "F"}
                     </button>
+                    <button
+                      onClick={() => router.push(`/podium?competition=${c.id}&genre=hommes`)}
+                      className="text-xs font-semibold rounded-full px-3 py-1.5 transition bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100">
+                      🏆
+                    </button>
                   </div>
                 </div>
               );
@@ -113,7 +119,6 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Footer */}
         <p className="text-center text-xs text-gray-300">IFSC World Cup Boulder · Saison 2026</p>
       </div>
     </main>
