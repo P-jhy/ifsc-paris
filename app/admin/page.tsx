@@ -46,7 +46,7 @@ const worldRankings: Record<string, number> = {
 
 type Profile = { id: string; username: string; avatar_url: string | null; hidden: boolean };
 type Tab = "votes" | "resultats" | "joueurs" | "points";
-type ScoringRule = { rule_key: string; label: string; points: number };
+type ScoringRule = { id: string; label: string; points: number };
 type AthleteOverride = {
   id: string;
   competition_id: string;
@@ -57,20 +57,20 @@ type AthleteOverride = {
 };
 
 const defaultScoringRules: ScoringRule[] = [
-  { rule_key: "phase1_rank_1_10", label: "Phase 1 — Rang 1-10", points: 2 },
-  { rule_key: "phase1_rank_11_25", label: "Phase 1 — Rang 11-25", points: 4 },
-  { rule_key: "phase1_rank_26_50", label: "Phase 1 — Rang 26-50", points: 7 },
-  { rule_key: "phase1_rank_51_plus", label: "Phase 1 — Rang 51+", points: 12 },
-  { rule_key: "phase1_unranked", label: "Phase 1 — Non classé", points: 15 },
-  { rule_key: "phase2_exact_gold", label: "Phase 2 — Bon vainqueur 🥇", points: 5 },
-  { rule_key: "phase2_exact_silver", label: "Phase 2 — Bon 2ème 🥈", points: 3 },
-  { rule_key: "phase2_exact_bronze", label: "Phase 2 — Bon 3ème 🥉", points: 2 },
-  { rule_key: "phase2_on_podium_wrong_place", label: "Phase 2 — Sur le podium (mauvaise place)", points: 1 },
-  { rule_key: "phase2_bonus_rank_1_10", label: "Phase 2 bonus — Rang 1-10", points: 0 },
-  { rule_key: "phase2_bonus_rank_11_25", label: "Phase 2 bonus — Rang 11-25", points: 1 },
-  { rule_key: "phase2_bonus_rank_26_50", label: "Phase 2 bonus — Rang 26-50", points: 3 },
-  { rule_key: "phase2_bonus_rank_51_plus", label: "Phase 2 bonus — Rang 51+", points: 5 },
-  { rule_key: "phase2_bonus_unranked", label: "Phase 2 bonus — Non classé", points: 7 },
+  { id: "phase1_rank_1_10", label: "Phase 1 — Rang 1-10", points: 2 },
+  { id: "phase1_rank_11_25", label: "Phase 1 — Rang 11-25", points: 4 },
+  { id: "phase1_rank_26_50", label: "Phase 1 — Rang 26-50", points: 7 },
+  { id: "phase1_rank_51_plus", label: "Phase 1 — Rang 51+", points: 12 },
+  { id: "phase1_unranked", label: "Phase 1 — Non classé", points: 15 },
+  { id: "phase2_exact_gold", label: "Phase 2 — Bon vainqueur 🥇", points: 5 },
+  { id: "phase2_exact_silver", label: "Phase 2 — Bon 2ème 🥈", points: 3 },
+  { id: "phase2_exact_bronze", label: "Phase 2 — Bon 3ème 🥉", points: 2 },
+  { id: "phase2_on_podium_wrong_place", label: "Phase 2 — Sur le podium (mauvaise place)", points: 1 },
+  { id: "phase2_bonus_rank_1_10", label: "Phase 2 bonus — Rang 1-10", points: 0 },
+  { id: "phase2_bonus_rank_11_25", label: "Phase 2 bonus — Rang 11-25", points: 1 },
+  { id: "phase2_bonus_rank_26_50", label: "Phase 2 bonus — Rang 26-50", points: 3 },
+  { id: "phase2_bonus_rank_51_plus", label: "Phase 2 bonus — Rang 51+", points: 5 },
+  { id: "phase2_bonus_unranked", label: "Phase 2 bonus — Non classé", points: 7 },
 ];
 
 function getRulePoints(ruleMap: Map<string, number>, key: string, fallback: number) {
@@ -206,11 +206,11 @@ export default function AdminPage() {
 
       const { data: rulesData } = await supabase
         .from("scoring_rules")
-        .select("rule_key, points");
+        .select("id, points");
       const ruleMap = new Map<string, number>();
-      defaultScoringRules.forEach((r) => ruleMap.set(r.rule_key, r.points));
-      rulesData?.forEach((r: { rule_key: string; points: number }) => {
-        ruleMap.set(r.rule_key, Number(r.points) || 0);
+      defaultScoringRules.forEach((r) => ruleMap.set(r.id, r.points));
+      rulesData?.forEach((r: { id: string; points: number }) => {
+        ruleMap.set(r.id, Number(r.points) || 0);
       });
 
       const { data: overrideRows } = await supabase
@@ -324,7 +324,7 @@ export default function AdminPage() {
     setRulesLoading(true);
     const { data } = await supabase
       .from("scoring_rules")
-      .select("rule_key, points");
+      .select("id, points");
 
     if (!data || data.length === 0) {
       setScoringRules(defaultScoringRules);
@@ -333,14 +333,14 @@ export default function AdminPage() {
     }
 
     const dbMap = new Map<string, number>();
-    data.forEach((r: { rule_key: string; points: number }) => {
-      dbMap.set(r.rule_key, Number(r.points) || 0);
+    data.forEach((r: { id: string; points: number }) => {
+      dbMap.set(r.id, Number(r.points) || 0);
     });
 
     setScoringRules(
       defaultScoringRules.map((rule) => ({
         ...rule,
-        points: dbMap.has(rule.rule_key) ? (dbMap.get(rule.rule_key) as number) : rule.points,
+        points: dbMap.has(rule.id) ? (dbMap.get(rule.id) as number) : rule.points,
       })),
     );
     setRulesLoading(false);
@@ -349,13 +349,14 @@ export default function AdminPage() {
   const saveScoringRules = async () => {
     setRulesSaving(true);
     const payload = scoringRules.map((r) => ({
-      rule_key: r.rule_key,
+      id: r.id,
+      label: r.label,
       points: Number(r.points) || 0,
     }));
 
     const { error } = await supabase
       .from("scoring_rules")
-      .upsert(payload, { onConflict: "rule_key" });
+      .upsert(payload, { onConflict: "id" });
 
     setRulesSaving(false);
     if (error) {
@@ -621,14 +622,14 @@ export default function AdminPage() {
               ) : (
                 <div className="space-y-3">
                   {scoringRules.map((rule) => (
-                    <div key={rule.rule_key} className="flex items-center justify-between gap-4">
+                    <div key={rule.id} className="flex items-center justify-between gap-4">
                       <label className="text-sm text-gray-700">{rule.label}</label>
                       <input
                         type="number"
                         value={rule.points}
                         onChange={(e) => {
                           const next = [...scoringRules];
-                          const idx = next.findIndex((r) => r.rule_key === rule.rule_key);
+                          const idx = next.findIndex((r) => r.id === rule.id);
                           next[idx] = { ...next[idx], points: Number(e.target.value) || 0 };
                           setScoringRules(next);
                         }}
@@ -653,7 +654,7 @@ export default function AdminPage() {
 
               <div className="flex flex-wrap gap-2 mb-4">
                 {competitions.map(c => (
-                  <button key={c.id} onClick={() => setSelectedComp(c.id)}
+                  <button key={`points-comp-${c.id}`} onClick={() => setSelectedComp(c.id)}
                     className={`text-sm font-medium rounded-full px-3 py-1.5 transition ${selectedComp === c.id ? "bg-gray-900 text-white" : "border border-gray-200 text-gray-500 hover:bg-gray-50"}`}>
                     {c.flag} {c.name}
                   </button>
@@ -662,7 +663,7 @@ export default function AdminPage() {
 
               <div className="flex gap-2 mb-4">
                 {["hommes", "femmes"].map(g => (
-                  <button key={g} onClick={() => setSelectedGenre(g)}
+                  <button key={`points-genre-${g}`} onClick={() => setSelectedGenre(g)}
                     className={`text-sm font-medium rounded-full px-4 py-1.5 transition ${selectedGenre === g ? "bg-gray-900 text-white" : "border border-gray-200 text-gray-500"}`}>
                     {g === "hommes" ? "Hommes" : "Femmes"}
                   </button>
