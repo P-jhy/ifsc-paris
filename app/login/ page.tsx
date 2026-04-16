@@ -9,7 +9,7 @@ export default function LoginPage() {
   const [loading, setLoading] = useState<"signin" | "signup" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
-  const onSignIn = async () => {s
+  const onSignIn = async () => {
     setError(null);
     setMessage(null);
     setLoading("signin");
