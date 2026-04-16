@@ -16,11 +16,14 @@ function PodiumContent() {
   const [loading, setLoading] = useState(true);
   const [userId, setUserId] = useState<string | null>(null);
 
+  const compName = competition.split("-")[0].charAt(0).toUpperCase() + competition.split("-")[0].slice(1);
+
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data }) => {
       if (!data.session) { router.push("/login"); return; }
       setUserId(data.session.user.id);
 
+      // Charger les finalistes officiels
       const { data: resultats } = await supabase
         .from("resultats_officiels")
         .select("*")
@@ -35,6 +38,21 @@ function PodiumContent() {
         ].filter(Boolean);
         setFinalistes(liste);
       }
+
+      // Charger les pronos existants du joueur
+      const { data: existingPick } = await supabase
+        .from("picks_phase2_temp")
+        .select("*")
+        .eq("user_id", data.session.user.id)
+        .eq("competition_id", `${competition}-${genre}`)
+        .single();
+
+      if (existingPick) {
+        setGold(existingPick.gold_athlete);
+        setSilver(existingPick.silver_athlete);
+        setBronze(existingPick.bronze_athlete);
+      }
+
       setLoading(false);
     });
   }, [router, competition, genre]);
@@ -65,10 +83,8 @@ function PodiumContent() {
       bronze_athlete: bronze,
     }, { onConflict: "user_id,competition_id" });
     setSaved(true);
-    setTimeout(() => router.push("/dashboard"), 1500);
+    setTimeout(() => setSaved(false), 2000);
   };
-
-  const compName = competition.split("-")[0].charAt(0).toUpperCase() + competition.split("-")[0].slice(1);
 
   if (loading) return (
     <main className="min-h-screen bg-white flex items-center justify-center">
@@ -127,17 +143,15 @@ function PodiumContent() {
               })}
             </div>
 
-            {gold && silver && bronze && !saved && (
+            {gold && silver && bronze && (
               <button onClick={valider}
-                className="w-full h-11 bg-gray-900 hover:bg-gray-700 text-white rounded-xl font-semibold text-sm transition">
-                Valider mon podium →
+                className={`w-full h-11 rounded-xl font-semibold text-sm transition ${
+                  saved
+                    ? "bg-green-50 border border-green-200 text-green-700"
+                    : "bg-gray-900 hover:bg-gray-700 text-white"
+                }`}>
+                {saved ? "✓ Podium sauvegardé !" : "Valider mon podium →"}
               </button>
-            )}
-
-            {saved && (
-              <div className="w-full h-11 bg-green-50 border border-green-200 text-green-700 rounded-xl font-semibold text-sm flex items-center justify-center">
-                ✓ Podium enregistré !
-              </div>
             )}
           </>
         )}
