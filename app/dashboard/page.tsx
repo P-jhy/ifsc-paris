@@ -159,6 +159,10 @@ export default function Dashboard() {
               className="text-sm font-medium text-gray-900 border border-gray-200 rounded-full px-4 py-2 hover:bg-gray-50 transition">
               Classement
             </button>
+            <button onClick={() => router.push("/chosen-one")}
+              className="text-sm font-medium text-gray-900 border border-gray-200 rounded-full px-4 py-2 hover:bg-gray-50 transition">
+              ⭐ Chosen One
+            </button>
             <button onClick={() => router.push("/profil")}
               className="text-sm font-medium text-gray-900 border border-gray-200 rounded-full px-4 py-2 hover:bg-gray-50 transition">
               Mon profil
