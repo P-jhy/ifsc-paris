@@ -44,24 +44,63 @@ const worldRankings: Record<string, number> = {
   "Natalia GROSSMAN": 61, "Ruby DANZIGER": 110, "Alma SAPIR HALEVI": 60,
 }
 
-function getRankingBonus(r: number) {
-  if (!r || r >= 999) return 15;
-  if (r <= 10) return 2;
-  if (r <= 25) return 4;
-  if (r <= 50) return 7;
-  return 12;
-}
-
-function getRankingBonusP2(r: number) {
-  if (!r || r >= 999) return 7;
-  if (r <= 10) return 0;
-  if (r <= 25) return 1;
-  if (r <= 50) return 3;
-  return 5;
-}
-
 type Profile = { id: string; username: string; avatar_url: string | null; hidden: boolean };
 type Tab = "votes" | "resultats" | "joueurs" | "points";
+type ScoringRule = { rule_key: string; label: string; points: number };
+type AthleteOverride = {
+  id: string;
+  competition_id: string;
+  genre: string;
+  athlete_name: string;
+  points: number;
+  note: string | null;
+};
+
+const defaultScoringRules: ScoringRule[] = [
+  { rule_key: "phase1_rank_1_10", label: "Phase 1 — Rang 1-10", points: 2 },
+  { rule_key: "phase1_rank_11_25", label: "Phase 1 — Rang 11-25", points: 4 },
+  { rule_key: "phase1_rank_26_50", label: "Phase 1 — Rang 26-50", points: 7 },
+  { rule_key: "phase1_rank_51_plus", label: "Phase 1 — Rang 51+", points: 12 },
+  { rule_key: "phase1_unranked", label: "Phase 1 — Non classé", points: 15 },
+  { rule_key: "phase2_exact_gold", label: "Phase 2 — Bon vainqueur 🥇", points: 5 },
+  { rule_key: "phase2_exact_silver", label: "Phase 2 — Bon 2ème 🥈", points: 3 },
+  { rule_key: "phase2_exact_bronze", label: "Phase 2 — Bon 3ème 🥉", points: 2 },
+  { rule_key: "phase2_on_podium_wrong_place", label: "Phase 2 — Sur le podium (mauvaise place)", points: 1 },
+  { rule_key: "phase2_bonus_rank_1_10", label: "Phase 2 bonus — Rang 1-10", points: 0 },
+  { rule_key: "phase2_bonus_rank_11_25", label: "Phase 2 bonus — Rang 11-25", points: 1 },
+  { rule_key: "phase2_bonus_rank_26_50", label: "Phase 2 bonus — Rang 26-50", points: 3 },
+  { rule_key: "phase2_bonus_rank_51_plus", label: "Phase 2 bonus — Rang 51+", points: 5 },
+  { rule_key: "phase2_bonus_unranked", label: "Phase 2 bonus — Non classé", points: 7 },
+];
+
+function getRulePoints(ruleMap: Map<string, number>, key: string, fallback: number) {
+  return ruleMap.has(key) ? (ruleMap.get(key) as number) : fallback;
+}
+
+function getRankingBonusFromRules(rank: number, ruleMap: Map<string, number>, phase: "phase1" | "phase2_bonus") {
+  const keys =
+    phase === "phase1"
+      ? {
+          top10: "phase1_rank_1_10",
+          top25: "phase1_rank_11_25",
+          top50: "phase1_rank_26_50",
+          other: "phase1_rank_51_plus",
+          unranked: "phase1_unranked",
+        }
+      : {
+          top10: "phase2_bonus_rank_1_10",
+          top25: "phase2_bonus_rank_11_25",
+          top50: "phase2_bonus_rank_26_50",
+          other: "phase2_bonus_rank_51_plus",
+          unranked: "phase2_bonus_unranked",
+        };
+
+  if (!rank || rank >= 999) return getRulePoints(ruleMap, keys.unranked, 0);
+  if (rank <= 10) return getRulePoints(ruleMap, keys.top10, 0);
+  if (rank <= 25) return getRulePoints(ruleMap, keys.top25, 0);
+  if (rank <= 50) return getRulePoints(ruleMap, keys.top50, 0);
+  return getRulePoints(ruleMap, keys.other, 0);
+}
 
 export default function AdminPage() {
   const router = useRouter();
@@ -77,6 +116,15 @@ export default function AdminPage() {
   const [voters, setVoters] = useState<{ p1: string[]; p2: string[] }>({ p1: [], p2: [] });
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [compStatuses, setCompStatuses] = useState<Record<string, boolean>>({});
+  const [scoringRules, setScoringRules] = useState<ScoringRule[]>(defaultScoringRules);
+  const [rulesLoading, setRulesLoading] = useState(false);
+  const [rulesSaving, setRulesSaving] = useState(false);
+  const [overrides, setOverrides] = useState<AthleteOverride[]>([]);
+  const [overridesLoading, setOverridesLoading] = useState(false);
+  const [overrideAthlete, setOverrideAthlete] = useState("");
+  const [overridePoints, setOverridePoints] = useState(0);
+  const [overrideNote, setOverrideNote] = useState("");
+  const [overrideSaving, setOverrideSaving] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data }) => {
@@ -101,6 +149,16 @@ export default function AdminPage() {
     loadResultats();
     loadVoters();
   }, [selectedComp, selectedGenre, loading]);
+
+  useEffect(() => {
+    if (loading || tab !== "points") return;
+    loadScoringRules();
+  }, [loading, tab]);
+
+  useEffect(() => {
+    if (loading || tab !== "points") return;
+    loadOverrides();
+  }, [loading, tab, selectedComp, selectedGenre]);
 
   const loadResultats = async () => {
     const { data } = await supabase.from("resultats_officiels").select("*")
@@ -142,30 +200,107 @@ export default function AdminPage() {
   const calculateScores = async () => {
     setCalculating(true);
     setMessage("Calcul en cours...");
-    const top8 = finalistes.filter(f => f.trim() !== "");
-    const { data: allPicks1 } = await supabase.from("picks_phase1_temp").select("user_id, athlete_name").eq("competition_id", `${selectedComp}-${selectedGenre}`);
-    const { data: allPicks2 } = await supabase.from("picks_phase2_temp").select("user_id, gold_athlete, silver_athlete, bronze_athlete").eq("competition_id", `${selectedComp}-${selectedGenre}`);
-    const userIds = [...new Set(allPicks1?.map(p => p.user_id) || [])];
-    for (const userId of userIds) {
-      const userPicks1 = allPicks1?.filter(p => p.user_id === userId).map(p => p.athlete_name) || [];
-      const userPick2 = allPicks2?.find(p => p.user_id === userId);
-      let phase1 = 0;
-      for (const pick of userPicks1) {
-        if (top8.includes(pick)) phase1 += getRankingBonus(worldRankings[pick] || 999);
+    try {
+      const top8 = finalistes.filter(f => f.trim() !== "");
+      const competitionGenreId = `${selectedComp}-${selectedGenre}`;
+
+      const { data: rulesData } = await supabase
+        .from("scoring_rules")
+        .select("rule_key, points");
+      const ruleMap = new Map<string, number>();
+      defaultScoringRules.forEach((r) => ruleMap.set(r.rule_key, r.points));
+      rulesData?.forEach((r: { rule_key: string; points: number }) => {
+        ruleMap.set(r.rule_key, Number(r.points) || 0);
+      });
+
+      const { data: overrideRows } = await supabase
+        .from("athlete_point_overrides")
+        .select("athlete_name, points")
+        .eq("competition_id", selectedComp)
+        .eq("genre", selectedGenre);
+      const overrideMap = new Map<string, number>();
+      overrideRows?.forEach((o: { athlete_name: string; points: number }) => {
+        overrideMap.set(o.athlete_name, Number(o.points) || 0);
+      });
+
+      const { data: allPicks1 } = await supabase
+        .from("picks_phase1_temp")
+        .select("user_id, athlete_name")
+        .eq("competition_id", competitionGenreId);
+      const { data: allPicks2 } = await supabase
+        .from("picks_phase2_temp")
+        .select("user_id, gold_athlete, silver_athlete, bronze_athlete")
+        .eq("competition_id", competitionGenreId);
+
+      const userIds = [
+        ...new Set([
+          ...(allPicks1?.map((p) => p.user_id) || []),
+          ...(allPicks2?.map((p) => p.user_id) || []),
+        ]),
+      ];
+
+      for (const userId of userIds) {
+        const userPicks1 = allPicks1?.filter(p => p.user_id === userId).map(p => p.athlete_name) || [];
+        const userPick2 = allPicks2?.find(p => p.user_id === userId);
+        let phase1 = 0;
+
+        for (const pick of userPicks1) {
+          if (!top8.includes(pick)) continue;
+          const rankingBonus = overrideMap.has(pick)
+            ? (overrideMap.get(pick) as number)
+            : getRankingBonusFromRules(worldRankings[pick] || 999, ruleMap, "phase1");
+          phase1 += rankingBonus;
+        }
+
+        let phase2 = 0;
+        const onPodiumWrongPlacePoints = getRulePoints(ruleMap, "phase2_on_podium_wrong_place", 1);
+
+        if (userPick2 && podium.gold && podium.silver && podium.bronze) {
+          if (userPick2.gold_athlete === podium.gold) {
+            const bonus = overrideMap.has(podium.gold)
+              ? (overrideMap.get(podium.gold) as number)
+              : getRankingBonusFromRules(worldRankings[podium.gold] || 999, ruleMap, "phase2_bonus");
+            phase2 += getRulePoints(ruleMap, "phase2_exact_gold", 5) + bonus;
+          } else if ([podium.gold, podium.silver, podium.bronze].includes(userPick2.gold_athlete)) {
+            phase2 += onPodiumWrongPlacePoints;
+          }
+
+          if (userPick2.silver_athlete === podium.silver) {
+            const bonus = overrideMap.has(podium.silver)
+              ? (overrideMap.get(podium.silver) as number)
+              : getRankingBonusFromRules(worldRankings[podium.silver] || 999, ruleMap, "phase2_bonus");
+            phase2 += getRulePoints(ruleMap, "phase2_exact_silver", 3) + bonus;
+          } else if ([podium.gold, podium.silver, podium.bronze].includes(userPick2.silver_athlete)) {
+            phase2 += onPodiumWrongPlacePoints;
+          }
+
+          if (userPick2.bronze_athlete === podium.bronze) {
+            const bonus = overrideMap.has(podium.bronze)
+              ? (overrideMap.get(podium.bronze) as number)
+              : getRankingBonusFromRules(worldRankings[podium.bronze] || 999, ruleMap, "phase2_bonus");
+            phase2 += getRulePoints(ruleMap, "phase2_exact_bronze", 2) + bonus;
+          } else if ([podium.gold, podium.silver, podium.bronze].includes(userPick2.bronze_athlete)) {
+            phase2 += onPodiumWrongPlacePoints;
+          }
+        }
+
+        await supabase.from("scores").upsert(
+          {
+            user_id: userId,
+            competition_id: selectedComp,
+            genre: selectedGenre,
+            phase1_points: phase1,
+            phase2_points: phase2,
+            total_points: phase1 + phase2,
+          },
+          { onConflict: "user_id,competition_id,genre" },
+        );
       }
-      let phase2 = 0;
-      if (userPick2 && podium.gold && podium.silver && podium.bronze) {
-        if (userPick2.gold_athlete === podium.gold) phase2 += 5 + getRankingBonusP2(worldRankings[podium.gold] || 999);
-        else if ([podium.gold, podium.silver, podium.bronze].includes(userPick2.gold_athlete)) phase2 += 1;
-        if (userPick2.silver_athlete === podium.silver) phase2 += 3 + getRankingBonusP2(worldRankings[podium.silver] || 999);
-        else if ([podium.gold, podium.silver, podium.bronze].includes(userPick2.silver_athlete)) phase2 += 1;
-        if (userPick2.bronze_athlete === podium.bronze) phase2 += 2 + getRankingBonusP2(worldRankings[podium.bronze] || 999);
-        else if ([podium.gold, podium.silver, podium.bronze].includes(userPick2.bronze_athlete)) phase2 += 1;
-      }
-      await supabase.from("scores").upsert({ user_id: userId, competition_id: selectedComp, genre: selectedGenre, phase1_points: phase1, phase2_points: phase2, total_points: phase1 + phase2 }, { onConflict: "user_id,competition_id,genre" });
+
+      setMessage(`✓ Scores calculés pour ${userIds.length} joueurs !`);
+    } finally {
+      setCalculating(false);
     }
-    setCalculating(false);
-    setMessage(`✓ Scores calculés pour ${userIds.length} joueurs !`);
   };
 
   const resetScores = async () => {
@@ -183,6 +318,108 @@ export default function AdminPage() {
     const current = compStatuses[compId] ?? false;
     await supabase.from("competition_status").upsert({ competition_id: compId, open: !current }, { onConflict: "competition_id" });
     setCompStatuses({ ...compStatuses, [compId]: !current });
+  };
+
+  const loadScoringRules = async () => {
+    setRulesLoading(true);
+    const { data } = await supabase
+      .from("scoring_rules")
+      .select("rule_key, points");
+
+    if (!data || data.length === 0) {
+      setScoringRules(defaultScoringRules);
+      setRulesLoading(false);
+      return;
+    }
+
+    const dbMap = new Map<string, number>();
+    data.forEach((r: { rule_key: string; points: number }) => {
+      dbMap.set(r.rule_key, Number(r.points) || 0);
+    });
+
+    setScoringRules(
+      defaultScoringRules.map((rule) => ({
+        ...rule,
+        points: dbMap.has(rule.rule_key) ? (dbMap.get(rule.rule_key) as number) : rule.points,
+      })),
+    );
+    setRulesLoading(false);
+  };
+
+  const saveScoringRules = async () => {
+    setRulesSaving(true);
+    const payload = scoringRules.map((r) => ({
+      rule_key: r.rule_key,
+      points: Number(r.points) || 0,
+    }));
+
+    const { error } = await supabase
+      .from("scoring_rules")
+      .upsert(payload, { onConflict: "rule_key" });
+
+    setRulesSaving(false);
+    if (error) {
+      setMessage(`Erreur sauvegarde règles: ${error.message}`);
+      return;
+    }
+    setMessage("✓ Règles sauvegardées !");
+    setTimeout(() => setMessage(null), 3000);
+  };
+
+  const loadOverrides = async () => {
+    setOverridesLoading(true);
+    const { data } = await supabase
+      .from("athlete_point_overrides")
+      .select("id, competition_id, genre, athlete_name, points, note")
+      .eq("competition_id", selectedComp)
+      .eq("genre", selectedGenre)
+      .order("athlete_name", { ascending: true });
+
+    setOverrides((data || []) as AthleteOverride[]);
+    setOverridesLoading(false);
+  };
+
+  const addOverride = async () => {
+    const athleteName = overrideAthlete.trim();
+    if (!athleteName) return;
+
+    setOverrideSaving(true);
+    const { error } = await supabase.from("athlete_point_overrides").insert({
+      competition_id: selectedComp,
+      genre: selectedGenre,
+      athlete_name: athleteName,
+      points: Number(overridePoints) || 0,
+      note: overrideNote.trim() || null,
+    });
+    setOverrideSaving(false);
+
+    if (error) {
+      setMessage(`Erreur ajout override: ${error.message}`);
+      return;
+    }
+
+    setOverrideAthlete("");
+    setOverridePoints(0);
+    setOverrideNote("");
+    await loadOverrides();
+    setMessage("✓ Ajustement ajouté !");
+    setTimeout(() => setMessage(null), 3000);
+  };
+
+  const deleteOverride = async (id: string) => {
+    const { error } = await supabase
+      .from("athlete_point_overrides")
+      .delete()
+      .eq("id", id);
+
+    if (error) {
+      setMessage(`Erreur suppression override: ${error.message}`);
+      return;
+    }
+
+    setOverrides(overrides.filter((o) => o.id !== id));
+    setMessage("✓ Ajustement supprimé !");
+    setTimeout(() => setMessage(null), 3000);
   };
 
   if (loading) return (
@@ -377,64 +614,126 @@ export default function AdminPage() {
         {/* TAB POINTS */}
         {tab === "points" && (
           <div className="space-y-6">
-            <div className="border border-gray-100 rounded-2xl overflow-hidden">
-              <div className="px-5 py-4 border-b border-gray-100 bg-gray-50">
-                <p className="text-sm font-semibold text-gray-700">Phase 1 — Bonus par classement mondial</p>
-              </div>
-              <div className="divide-y divide-gray-100">
-                {[
-                  { range: "Rang 1-10", points: "+2 pts" },
-                  { range: "Rang 11-25", points: "+4 pts" },
-                  { range: "Rang 26-50", points: "+7 pts" },
-                  { range: "Rang 51+", points: "+12 pts" },
-                  { range: "Non classé", points: "+15 pts" },
-                ].map(({ range, points }) => (
-                  <div key={range} className="flex items-center justify-between px-5 py-3">
-                    <span className="text-sm text-gray-600">{range}</span>
-                    <span className="text-sm font-semibold text-gray-900">{points}</span>
-                  </div>
-                ))}
-              </div>
+            <div className="border border-gray-100 rounded-2xl p-5">
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4">Règles de scoring</p>
+              {rulesLoading ? (
+                <p className="text-sm text-gray-400">Chargement des règles...</p>
+              ) : (
+                <div className="space-y-3">
+                  {scoringRules.map((rule) => (
+                    <div key={rule.rule_key} className="flex items-center justify-between gap-4">
+                      <label className="text-sm text-gray-700">{rule.label}</label>
+                      <input
+                        type="number"
+                        value={rule.points}
+                        onChange={(e) => {
+                          const next = [...scoringRules];
+                          const idx = next.findIndex((r) => r.rule_key === rule.rule_key);
+                          next[idx] = { ...next[idx], points: Number(e.target.value) || 0 };
+                          setScoringRules(next);
+                        }}
+                        className="w-24 h-10 rounded-xl border border-gray-200 px-3 text-sm outline-none focus:border-gray-400 transition"
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <button
+                onClick={saveScoringRules}
+                disabled={rulesSaving || rulesLoading}
+                className="mt-5 h-11 border border-gray-200 hover:bg-gray-50 rounded-xl text-sm font-semibold transition px-4 disabled:opacity-60"
+              >
+                {rulesSaving ? "Sauvegarde..." : "Sauvegarder les règles"}
+              </button>
             </div>
 
-            <div className="border border-gray-100 rounded-2xl overflow-hidden">
-              <div className="px-5 py-4 border-b border-gray-100 bg-gray-50">
-                <p className="text-sm font-semibold text-gray-700">Phase 2 — Points de base</p>
-              </div>
-              <div className="divide-y divide-gray-100">
-                {[
-                  { label: "Bon vainqueur 🥇", points: "+5 pts" },
-                  { label: "Bon 2ème 🥈", points: "+3 pts" },
-                  { label: "Bon 3ème 🥉", points: "+2 pts" },
-                  { label: "Sur le podium (mauvaise place)", points: "+1 pt" },
-                ].map(({ label, points }) => (
-                  <div key={label} className="flex items-center justify-between px-5 py-3">
-                    <span className="text-sm text-gray-600">{label}</span>
-                    <span className="text-sm font-semibold text-gray-900">{points}</span>
-                  </div>
+            <div className="border border-gray-100 rounded-2xl p-5">
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4">Ajustements individuels</p>
+
+              <div className="flex flex-wrap gap-2 mb-4">
+                {competitions.map(c => (
+                  <button key={c.id} onClick={() => setSelectedComp(c.id)}
+                    className={`text-sm font-medium rounded-full px-3 py-1.5 transition ${selectedComp === c.id ? "bg-gray-900 text-white" : "border border-gray-200 text-gray-500 hover:bg-gray-50"}`}>
+                    {c.flag} {c.name}
+                  </button>
                 ))}
               </div>
+
+              <div className="flex gap-2 mb-4">
+                {["hommes", "femmes"].map(g => (
+                  <button key={g} onClick={() => setSelectedGenre(g)}
+                    className={`text-sm font-medium rounded-full px-4 py-1.5 transition ${selectedGenre === g ? "bg-gray-900 text-white" : "border border-gray-200 text-gray-500"}`}>
+                    {g === "hommes" ? "Hommes" : "Femmes"}
+                  </button>
+                ))}
+              </div>
+
+              <div className="grid gap-3 md:grid-cols-[1fr_120px_1fr_auto] items-end mb-5">
+                <div>
+                  <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1 block">Athlète</label>
+                  <input
+                    type="text"
+                    value={overrideAthlete}
+                    onChange={(e) => setOverrideAthlete(e.target.value)}
+                    placeholder="Nom de l'athlète"
+                    className="w-full h-10 rounded-xl border border-gray-200 px-3 text-sm outline-none focus:border-gray-400 transition"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1 block">Points</label>
+                  <input
+                    type="number"
+                    value={overridePoints}
+                    onChange={(e) => setOverridePoints(Number(e.target.value) || 0)}
+                    className="w-full h-10 rounded-xl border border-gray-200 px-3 text-sm outline-none focus:border-gray-400 transition"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1 block">Note (optionnelle)</label>
+                  <input
+                    type="text"
+                    value={overrideNote}
+                    onChange={(e) => setOverrideNote(e.target.value)}
+                    placeholder="Ex: wildcard, blessure..."
+                    className="w-full h-10 rounded-xl border border-gray-200 px-3 text-sm outline-none focus:border-gray-400 transition"
+                  />
+                </div>
+                <button
+                  onClick={addOverride}
+                  disabled={overrideSaving}
+                  className="h-10 border border-gray-200 hover:bg-gray-50 rounded-xl text-sm font-semibold transition px-4 disabled:opacity-60"
+                >
+                  {overrideSaving ? "Ajout..." : "Ajouter"}
+                </button>
+              </div>
+
+              {overridesLoading ? (
+                <p className="text-sm text-gray-400">Chargement des ajustements...</p>
+              ) : overrides.length === 0 ? (
+                <p className="text-sm text-gray-400">Aucun ajustement pour cette compétition/genre.</p>
+              ) : (
+                <div className="divide-y divide-gray-100 border border-gray-100 rounded-2xl overflow-hidden">
+                  {overrides.map((o) => (
+                    <div key={o.id} className="flex items-center gap-3 px-4 py-3">
+                      <div className="flex-1">
+                        <p className="text-sm font-semibold text-gray-900">{o.athlete_name}</p>
+                        <p className="text-xs text-gray-400">
+                          {o.points} pts{o.note ? ` · ${o.note}` : ""}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => deleteOverride(o.id)}
+                        className="text-xs font-semibold rounded-full px-3 py-1.5 transition bg-red-50 text-red-600 border border-red-200 hover:bg-red-100"
+                      >
+                        Supprimer
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
-            <div className="border border-gray-100 rounded-2xl overflow-hidden">
-              <div className="px-5 py-4 border-b border-gray-100 bg-gray-50">
-                <p className="text-sm font-semibold text-gray-700">Phase 2 — Bonus classement mondial</p>
-              </div>
-              <div className="divide-y divide-gray-100">
-                {[
-                  { range: "Rang 1-10", points: "+0 pt" },
-                  { range: "Rang 11-25", points: "+1 pt" },
-                  { range: "Rang 26-50", points: "+3 pts" },
-                  { range: "Rang 51+", points: "+5 pts" },
-                  { range: "Non classé", points: "+7 pts" },
-                ].map(({ range, points }) => (
-                  <div key={range} className="flex items-center justify-between px-5 py-3">
-                    <span className="text-sm text-gray-600">{range}</span>
-                    <span className="text-sm font-semibold text-gray-900">{points}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
           </div>
         )}
       </div>
