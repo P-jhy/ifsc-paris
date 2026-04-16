@@ -9,7 +9,7 @@ const medals = ["🥇", "🥈", "🥉"];
 
 type PlayerScore = {
   user_id: string;
-  email: string;
+  username: string;
   total: number;
   details: number[];
 }
@@ -27,14 +27,19 @@ export default function ClassementPage() {
         .from("scores")
         .select("user_id, competition_id, total_points");
 
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("id, username");
+
       if (!scores || scores.length === 0) {
         setLoading(false);
         return;
       }
 
-      const userIds = [...new Set(scores.map(s => s.user_id))];
-      const { data: users } = await supabase.auth.admin?.listUsers?.() || { data: null };
+      const profileMap: Record<string, string> = {};
+      profiles?.forEach(p => { profileMap[p.id] = p.username; });
 
+      const userIds = [...new Set(scores.map(s => s.user_id))];
       const playerMap: Record<string, PlayerScore> = {};
 
       for (const userId of userIds) {
@@ -47,16 +52,10 @@ export default function ClassementPage() {
 
         playerMap[userId] = {
           user_id: userId,
-          email: userId.substring(0, 8) + "...",
+          username: profileMap[userId] || "Joueur",
           total,
           details,
         };
-      }
-
-      const { data: session } = await supabase.auth.getSession();
-      const currentUserId = session.session?.user.id;
-      if (currentUserId && playerMap[currentUserId]) {
-        playerMap[currentUserId].email = session.session?.user.email || "Moi";
       }
 
       const sorted = Object.values(playerMap).sort((a, b) => b.total - a.total);
@@ -92,18 +91,16 @@ export default function ClassementPage() {
           </div>
         ) : (
           <>
-            {/* Top 3 */}
             <div className="grid grid-cols-3 gap-3 mb-8">
               {classement.slice(0, 3).map((j, idx) => (
                 <div key={idx} className={`rounded-2xl border p-4 text-center ${idx === 0 ? "border-amber-200 bg-amber-50" : "border-gray-100 bg-gray-50"}`}>
                   <p className="text-2xl mb-1">{medals[idx]}</p>
-                  <p className="font-semibold text-sm text-gray-900 truncate">{j.email}</p>
+                  <p className="font-semibold text-sm text-gray-900 truncate">{j.username}</p>
                   <p className={`text-lg font-bold mt-1 ${idx === 0 ? "text-amber-600" : "text-gray-700"}`}>{j.total} pts</p>
                 </div>
               ))}
             </div>
 
-            {/* Tableau complet */}
             <div className="border border-gray-100 rounded-2xl overflow-hidden mb-8">
               <div className="grid grid-cols-[32px_1fr_60px] gap-2 px-5 py-3 bg-gray-50 border-b border-gray-100">
                 <p className="text-xs font-semibold text-gray-400">#</p>
@@ -113,13 +110,12 @@ export default function ClassementPage() {
               {classement.map((j, idx) => (
                 <div key={idx} className="grid grid-cols-[32px_1fr_60px] gap-2 px-5 py-4 border-b border-gray-50 last:border-0 items-center hover:bg-gray-50 transition">
                   <p className="text-sm font-medium text-gray-400">{idx + 1}</p>
-                  <p className="text-sm font-semibold text-gray-900 truncate">{j.email}</p>
+                  <p className="text-sm font-semibold text-gray-900">{j.username}</p>
                   <p className="text-sm font-bold text-gray-900 text-right">{j.total}</p>
                 </div>
               ))}
             </div>
 
-            {/* Détail par étape */}
             <div className="border border-gray-100 rounded-2xl overflow-hidden">
               <div className="px-5 py-3 bg-gray-50 border-b border-gray-100">
                 <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Détail par étape</p>
@@ -137,7 +133,7 @@ export default function ClassementPage() {
                   <tbody>
                     {classement.map((j, idx) => (
                       <tr key={idx} className="border-b border-gray-50 last:border-0 hover:bg-gray-50 transition">
-                        <td className="px-5 py-3 font-semibold text-gray-900 truncate max-w-[120px]">{j.email}</td>
+                        <td className="px-5 py-3 font-semibold text-gray-900">{j.username}</td>
                         {j.details.map((pts, i) => (
                           <td key={i} className="text-center px-3 py-3">
                             {pts > 0
