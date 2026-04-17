@@ -15,6 +15,7 @@ const AVATARS = [
   "CLIMBETE (10).png",
   "CLIMBETE (11).png",
   "CLIMBETE (12).png",
+  "CLIMBETE (13).png",
 ];
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
