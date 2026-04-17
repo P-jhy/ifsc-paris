@@ -218,6 +218,26 @@ useEffect(() => {
 
   const compName = competition.split("-")[0].charAt(0).toUpperCase() + competition.split("-")[0].slice(1);
 
+  if (isOpen === null) return (
+    <main className="min-h-screen bg-white flex items-center justify-center">
+      <p className="text-gray-400 text-sm">Chargement...</p>
+    </main>
+  );
+
+  if (isOpen === false) return (
+    <main className="min-h-screen bg-white flex items-center justify-center">
+      <div className="text-center px-6">
+        <p className="text-5xl mb-4">🔒</p>
+        <p className="text-lg font-semibold text-gray-900 mb-2">Votes fermés</p>
+        <p className="text-sm text-gray-400 mb-6">Les votes pour cette étape ne sont pas encore ouverts.</p>
+        <button onClick={() => router.push("/dashboard")}
+          className="bg-gray-900 text-white rounded-xl px-6 py-3 text-sm font-semibold">
+          ← Retour au dashboard
+        </button>
+      </div>
+    </main>
+  );
+
   return (
     <main className="min-h-screen bg-white text-gray-900">
       <div className="max-w-2xl mx-auto px-6 py-12">
