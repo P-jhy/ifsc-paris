@@ -1,3 +1,4 @@
+cat > app/admin/page.tsx << 'ENDOFFILE'
 "use client";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -81,7 +82,8 @@ function getRankingBonusFromRules(rank: number, ruleMap: Map<string, number>, ph
   if (rank <= 50) return getRulePoints(ruleMap, keys.top50, 0);
   return getRulePoints(ruleMap, keys.other, 0);
 }
-function ChosenOneStatus({ compId, supabase, onReset }: { compId: string; supabase: any; onReset: () => void }) {
+
+function ChosenOneStatus({ compId, onReset }: { compId: string; onReset: () => void }) {
   const [current, setCurrent] = useState<{ athlete_name: string; revealed_at: string } | null>(null);
 
   useEffect(() => {
@@ -109,6 +111,7 @@ function ChosenOneStatus({ compId, supabase, onReset }: { compId: string; supaba
     </div>
   );
 }
+
 export default function AdminPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
@@ -177,40 +180,15 @@ export default function AdminPage() {
   };
 
   const loadVoters = async () => {
-    const { data: p1 } = await supabase
-      .from("picks_phase1_temp")
-      .select("user_id")
-      .eq("competition_id", `${selectedComp}-${selectedGenre}`);
-    
-    const { data: p2 } = await supabase
-      .from("picks_phase2_temp")
-      .select("user_id")
-      .eq("competition_id", `${selectedComp}-${selectedGenre}`);
-    
-    const { data: chosenProps } = await supabase
-      .from("chosen_one_proposals")
-      .select("user_id, athlete_name")
-      .eq("competition_id", selectedComp);
-  
-    const { data: freshProfiles } = await supabase
-      .from("profiles")
-      .select("id, username");
-  
-    const getName = (id: string) => 
-      freshProfiles?.find(p => p.id === id)?.username || id.substring(0, 8);
-  
+    const { data: p1 } = await supabase.from("picks_phase1_temp").select("user_id").eq("competition_id", `${selectedComp}-${selectedGenre}`);
+    const { data: p2 } = await supabase.from("picks_phase2_temp").select("user_id").eq("competition_id", `${selectedComp}-${selectedGenre}`);
+    const { data: chosenProps } = await supabase.from("chosen_one_proposals").select("user_id, athlete_name").eq("competition_id", selectedComp);
+    const { data: freshProfiles } = await supabase.from("profiles").select("id, username");
+    const getName = (id: string) => freshProfiles?.find(p => p.id === id)?.username || id.substring(0, 8);
     const p1Ids = [...new Set(p1?.map(p => p.user_id) || [])];
     const p2Ids = [...new Set(p2?.map(p => p.user_id) || [])];
-    const chosenList = (chosenProps || []).map(p => ({
-      username: getName(p.user_id),
-      athlete: p.athlete_name,
-    }));
-  
-    setVoters({ 
-      p1: p1Ids.map(getName), 
-      p2: p2Ids.map(getName), 
-      chosen: chosenList 
-    });
+    const chosenList = (chosenProps || []).map(p => ({ username: getName(p.user_id), athlete: p.athlete_name }));
+    setVoters({ p1: p1Ids.map(getName), p2: p2Ids.map(getName), chosen: chosenList });
   };
 
   const saveFinalistes = async () => {
@@ -336,6 +314,45 @@ export default function AdminPage() {
     setTimeout(() => setMessage(null), 3000);
   };
 
+  const tirageAuSort = async () => {
+    if (voters.chosen.length === 0) { setMessage("Aucune proposition à tirer au sort !"); return; }
+    const random = voters.chosen[Math.floor(Math.random() * voters.chosen.length)];
+    const proposer = profiles.find(p => p.username === random.username);
+    await supabase.from("chosen_one").upsert({
+      competition_id: selectedComp,
+      athlete_name: random.athlete,
+      proposed_by: proposer?.id || null,
+      revealed_at: new Date().toISOString(),
+    }, { onConflict: "competition_id" });
+    setMessage(`⭐ L'élu est : ${random.athlete} (proposé par ${random.username}) !`);
+  };
+
+  const calculerPointsChosenOne = async () => {
+    const input = document.getElementById("chosen-rank-input") as HTMLInputElement;
+    const rank = parseInt(input.value);
+    if (!rank) { setMessage("Entre un rang valide."); return; }
+    const { data: chosen } = await supabase.from("chosen_one").select("athlete_name").eq("competition_id", selectedComp).single();
+    if (!chosen) { setMessage("Aucun élu trouvé pour cette étape."); return; }
+    const { data: picks } = await supabase.from("chosen_one_picks").select("user_id, predicted_rank").eq("competition_id", selectedComp);
+    for (const pick of picks || []) {
+      const diff = Math.abs(pick.predicted_rank - rank);
+      let pts = 0;
+      if (diff === 0) pts = 20;
+      else if (diff <= 2) pts = 10;
+      else if (diff <= 5) pts = 5;
+      else if (diff <= 10) pts = 2;
+      await supabase.from("scores").upsert({
+        user_id: pick.user_id,
+        competition_id: `${selectedComp}-chosen`,
+        genre: "chosen",
+        phase1_points: pts,
+        phase2_points: 0,
+        total_points: pts,
+      }, { onConflict: "user_id,competition_id,genre" });
+    }
+    setMessage(`✓ Points Chosen One calculés ! Rang réel : #${rank}`);
+  };
+
   if (loading) return (
     <main className="min-h-screen bg-white flex items-center justify-center">
       <p className="text-gray-400 text-sm">Chargement...</p>
@@ -359,7 +376,7 @@ export default function AdminPage() {
           <h1 className="text-2xl font-semibold">Panel Admin</h1>
         </div>
         {message && <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-xl text-green-700 text-sm font-medium">{message}</div>}
-        <div className="flex gap-2 mb-8 border-b border-gray-100 pb-4">
+        <div className="flex gap-2 mb-8 border-b border-gray-100 pb-4 flex-wrap">
           {tabs.map(t => (
             <button key={t.id} onClick={() => setTab(t.id)}
               className={`text-sm font-medium rounded-full px-4 py-1.5 transition ${tab === t.id ? "bg-gray-900 text-white" : "text-gray-500 hover:text-gray-900"}`}>
@@ -378,7 +395,7 @@ export default function AdminPage() {
                 </button>
               ))}
             </div>
-            <div className="flex gap-2 mb-6">
+            <div className="flex gap-2 mb-4">
               {["hommes", "femmes"].map(g => (
                 <button key={g} onClick={() => setSelectedGenre(g)}
                   className={`text-sm font-medium rounded-full px-4 py-1.5 transition ${selectedGenre === g ? "bg-gray-900 text-white" : "border border-gray-200 text-gray-500"}`}>
@@ -387,9 +404,9 @@ export default function AdminPage() {
               ))}
             </div>
             <button onClick={loadVoters}
-  className="w-full h-10 border border-gray-200 hover:bg-gray-50 rounded-xl text-sm font-medium transition mb-4">
-  🔄 Rafraîchir les votes
-</button>
+              className="w-full h-10 border border-gray-200 hover:bg-gray-50 rounded-xl text-sm font-medium transition mb-4">
+              🔄 Rafraîchir les votes
+            </button>
             <div className="grid grid-cols-2 gap-4 mb-4">
               <div className="border border-gray-100 rounded-2xl p-5">
                 <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Phase 1 — {voters.p1.length} joueurs</p>
@@ -602,160 +619,60 @@ export default function AdminPage() {
             </div>
           </div>
         )}
+
         {tab === "chosen" && (
-  <div>
-    <div className="flex flex-wrap gap-2 mb-6">
-      {competitions.map(c => (
-        <button key={c.id} onClick={() => setSelectedComp(c.id)}
-          className={`text-sm font-medium rounded-full px-3 py-1.5 transition ${selectedComp === c.id ? "bg-gray-900 text-white" : "border border-gray-200 text-gray-500 hover:bg-gray-50"}`}>
-          {c.flag} {c.name}
-        </button>
-      ))}
-    </div>
-
-    {/* Élu actuel */}
-    <ChosenOneStatus compId={selectedComp} supabase={supabase} onReset={async () => {
-      if (!confirm("Réinitialiser le Chosen One ? Cela supprime l'élu actuel ET toutes les propositions pour cette étape.")) return;
-      await supabase.from("chosen_one").delete().eq("competition_id", selectedComp);
-      await supabase.from("chosen_one_proposals").delete().eq("competition_id", selectedComp);
-      setVoters(v => ({ ...v, chosen: [] }));
-      setMessage("✓ Chosen One réinitialisé ! Les joueurs peuvent re-proposer.");
-      setTimeout(() => setMessage(null), 4000);
-    }} />
-
-    <div className="border border-gray-100 rounded-2xl p-5 mb-4">
-      <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4">Propositions reçues</p>
-      {voters.chosen.length === 0 ? (
-        <p className="text-gray-300 text-sm">Aucune proposition pour cette étape.</p>
-      ) : (
-        <div className="divide-y divide-gray-100">
-          {voters.chosen.map((p, i) => (
-            <div key={i} className="flex items-center justify-between py-3">
-              <span className="text-sm font-medium text-gray-900">{p.username}</span>
-              <span className="text-sm text-gray-500">{p.athlete}</span>
+          <div>
+            <div className="flex flex-wrap gap-2 mb-6">
+              {competitions.map(c => (
+                <button key={c.id} onClick={() => setSelectedComp(c.id)}
+                  className={`text-sm font-medium rounded-full px-3 py-1.5 transition ${selectedComp === c.id ? "bg-gray-900 text-white" : "border border-gray-200 text-gray-500 hover:bg-gray-50"}`}>
+                  {c.flag} {c.name}
+                </button>
+              ))}
             </div>
-          ))}
-        </div>
-      )}
-    </div>
 
-    <button
-      onClick={async () => {
-        if (voters.chosen.length === 0) { setMessage("Aucune proposition à tirer au sort !"); return; }
-        const random = voters.chosen[Math.floor(Math.random() * voters.chosen.length)];
-        const proposer = profiles.find(p => p.username === random.username);
-        await supabase.from("chosen_one").upsert({
-          competition_id: selectedComp,
-          athlete_name: random.athlete,
-          proposed_by: proposer?.id || null,
-          revealed_at: new Date().toISOString(),
-        }, { onConflict: "competition_id" });
-        setMessage(`⭐ L'élu est : ${random.athlete} (proposé par ${random.username}) !`);
-      }}
-      className="w-full h-11 bg-amber-500 hover:bg-amber-400 text-white rounded-xl font-semibold text-sm transition mb-3">
-      🎲 Tirer au sort l'Élu
-    </button>
+            <ChosenOneStatus compId={selectedComp} onReset={async () => {
+              if (!confirm("Réinitialiser le Chosen One ? Cela supprime l'élu actuel ET toutes les propositions.")) return;
+              await supabase.from("chosen_one").delete().eq("competition_id", selectedComp);
+              await supabase.from("chosen_one_proposals").delete().eq("competition_id", selectedComp);
+              setVoters(v => ({ ...v, chosen: [] }));
+              setMessage("✓ Chosen One réinitialisé !");
+              setTimeout(() => setMessage(null), 4000);
+            }} />
 
-    <div className="border border-gray-100 rounded-2xl p-5 mb-4">
-      <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4">Entrer le rang officiel en qualifs</p>
-      <p className="text-sm text-gray-500 mb-4">Une fois les qualifications terminées, entre le rang réel de l'Élu pour calculer les points.</p>
-      <div className="flex gap-3">
-        <input type="number" min="1" max="200" placeholder="Rang officiel (ex: 14)"
-          id="chosen-rank-input"
-          className="flex-1 h-11 rounded-xl border border-gray-200 px-4 text-sm outline-none focus:border-gray-400 transition"/>
-        <button
-          onClick={async () => {
-            const input = document.getElementById("chosen-rank-input") as HTMLInputElement;
-            const rank = parseInt(input.value);
-            if (!rank) { setMessage("Entre un rang valide."); return; }
-            const { data: chosen } = await supabase.from("chosen_one").select("athlete_name").eq("competition_id", selectedComp).single();
-            if (!chosen) { setMessage("Aucun élu trouvé pour cette étape."); return; }
-            const { data: picks } = await supabase.from("chosen_one_picks").select("user_id, predicted_rank").eq("competition_id", selectedComp);
-            for (const pick of picks || []) {
-              const diff = Math.abs(pick.predicted_rank - rank);
-              let pts = 0;
-              if (diff === 0) pts = 20;
-              else if (diff <= 2) pts = 10;
-              else if (diff <= 5) pts = 5;
-              else if (diff <= 10) pts = 2;
-              await supabase.from("scores").upsert({
-                user_id: pick.user_id,
-                competition_id: `${selectedComp}-chosen`,
-                genre: "chosen",
-                phase1_points: pts,
-                phase2_points: 0,
-                total_points: pts,
-              }, { onConflict: "user_id,competition_id,genre" });
-            }
-            setMessage(`✓ Points Chosen One calculés ! Rang réel : #${rank}`);
-          }}
-          className="h-11 bg-gray-900 hover:bg-gray-700 text-white rounded-xl px-5 text-sm font-semibold transition">
-          Calculer les points
-        </button>
-      </div>
-    </div>
-  </div>
-)}
-    </div>
+            <div className="border border-gray-100 rounded-2xl p-5 mb-4">
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4">Propositions reçues — {voters.chosen.length}</p>
+              {voters.chosen.length === 0 ? (
+                <p className="text-gray-300 text-sm">Aucune proposition pour cette étape.</p>
+              ) : voters.chosen.map((p, i) => (
+                <div key={i} className="flex items-center justify-between py-3 border-b border-gray-50 last:border-0">
+                  <span className="text-sm font-medium text-gray-900">{p.username}</span>
+                  <span className="text-sm text-gray-500">{p.athlete}</span>
+                </div>
+              ))}
+            </div>
 
-    <button
-      onClick={async () => {
-        if (voters.chosen.length === 0) { setMessage("Aucune proposition à tirer au sort !"); return; }
-        const random = voters.chosen[Math.floor(Math.random() * voters.chosen.length)];
-        const proposer = profiles.find(p => p.username === random.username);
-        await supabase.from("chosen_one").upsert({
-          competition_id: selectedComp,
-          athlete_name: random.athlete,
-          proposed_by: proposer?.id || null,
-          revealed_at: new Date().toISOString(),
-        }, { onConflict: "competition_id" });
-        setMessage(`⭐ L'élu est : ${random.athlete} (proposé par ${random.username}) !`);
-      }}
-      className="w-full h-11 bg-amber-500 hover:bg-amber-400 text-white rounded-xl font-semibold text-sm transition mb-8">
-      🎲 Tirer au sort l'Élu
-    </button>
+            <button onClick={tirageAuSort}
+              className="w-full h-11 bg-amber-500 hover:bg-amber-400 text-white rounded-xl font-semibold text-sm transition mb-4">
+              🎲 Tirer au sort l'Élu
+            </button>
 
-    <div className="border border-gray-100 rounded-2xl p-5 mb-4">
-      <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4">Entrer le rang officiel en qualifs</p>
-      <p className="text-sm text-gray-500 mb-4">Une fois les qualifications terminées, entre le rang réel de l'Élu pour calculer les points.</p>
-      <div className="flex gap-3">
-        <input type="number" min="1" max="200" placeholder="Rang officiel (ex: 14)"
-          id="chosen-rank-input"
-          className="flex-1 h-11 rounded-xl border border-gray-200 px-4 text-sm outline-none focus:border-gray-400 transition"/>
-        <button
-          onClick={async () => {
-            const input = document.getElementById("chosen-rank-input") as HTMLInputElement;
-            const rank = parseInt(input.value);
-            if (!rank) { setMessage("Entre un rang valide."); return; }
-            const { data: chosen } = await supabase.from("chosen_one").select("athlete_name").eq("competition_id", selectedComp).single();
-            if (!chosen) { setMessage("Aucun élu trouvé pour cette étape."); return; }
-            const { data: picks } = await supabase.from("chosen_one_picks").select("user_id, predicted_rank").eq("competition_id", selectedComp);
-            for (const pick of picks || []) {
-              const diff = Math.abs(pick.predicted_rank - rank);
-              let pts = 0;
-              if (diff === 0) pts = 20;
-              else if (diff <= 2) pts = 10;
-              else if (diff <= 5) pts = 5;
-              else if (diff <= 10) pts = 2;
-              await supabase.from("scores").upsert({
-                user_id: pick.user_id,
-                competition_id: `${selectedComp}-chosen`,
-                genre: "chosen",
-                phase1_points: pts,
-                phase2_points: 0,
-                total_points: pts,
-              }, { onConflict: "user_id,competition_id,genre" });
-            }
-            setMessage(`✓ Points Chosen One calculés ! Rang réel : #${rank}`);
-          }}
-          className="h-11 bg-gray-900 hover:bg-gray-700 text-white rounded-xl px-5 text-sm font-semibold transition">
-          Calculer les points
-        </button>
-      </div>
-    </div>
-  </div>
-)}
+            <div className="border border-gray-100 rounded-2xl p-5">
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Rang officiel en qualifs</p>
+              <p className="text-sm text-gray-500 mb-4">Entre le rang réel de l'Élu pour calculer les points.</p>
+              <div className="flex gap-3">
+                <input type="number" min="1" max="200" placeholder="Ex: 14" id="chosen-rank-input"
+                  className="flex-1 h-11 rounded-xl border border-gray-200 px-4 text-sm outline-none focus:border-gray-400 transition"/>
+                <button onClick={calculerPointsChosenOne}
+                  className="h-11 bg-gray-900 hover:bg-gray-700 text-white rounded-xl px-5 text-sm font-semibold transition">
+                  Calculer les points
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </main>
   );
 }
+ENDOFFILE
