@@ -177,18 +177,11 @@ function CompetitionContent() {
   const [search, setSearch] = useState("");
   const [isOpen, setIsOpen] = useState<boolean | null>(null);
 
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      if (!data.session) router.push("/login");
-      else setUserId(data.session.user.id);
-    });
-  }, [router]);
-
-  useEffect(() => {
-    supabase.from("competition_status").select("open")
-      .eq("competition_id", competition).single()
-      .then(({ data }) => setIsOpen(data?.open ?? false));
-  }, [competition]);
+useEffect(() => {
+  supabase.from("competition_status").select("open")
+    .eq("competition_id", competition).single()
+    .then(({ data }) => setIsOpen(data?.open ?? false));
+}, [competition]);
 
   const athletes = genre === "hommes" ? athletesHommes : athletesFemmes;
   const sorted = [...athletes].sort((a, b) => a.ranking - b.ranking);
@@ -196,6 +189,13 @@ function CompetitionContent() {
     a.name.toLowerCase().includes(search.toLowerCase()) ||
     a.country.toLowerCase().includes(search.toLowerCase())
   );
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => {
+      if (!data.session) router.push("/login");
+      else setUserId(data.session.user.id);
+    });
+  }, [router]);
 
   const toggle = (name: string) => {
     if (selected.includes(name)) setSelected(selected.filter(n => n !== name));
@@ -218,29 +218,10 @@ function CompetitionContent() {
 
   const compName = competition.split("-")[0].charAt(0).toUpperCase() + competition.split("-")[0].slice(1);
 
-  if (isOpen === null) return (
-    <main className="min-h-screen bg-white flex items-center justify-center">
-      <p className="text-gray-400 text-sm">Chargement...</p>
-    </main>
-  );
-
-  if (isOpen === false) return (
-    <main className="min-h-screen bg-white flex items-center justify-center">
-      <div className="text-center px-6">
-        <p className="text-5xl mb-4">🔒</p>
-        <p className="text-lg font-semibold text-gray-900 mb-2">Votes fermés</p>
-        <p className="text-sm text-gray-400 mb-6">Les votes pour cette étape ne sont pas encore ouverts.</p>
-        <button onClick={() => router.push("/dashboard")}
-          className="bg-gray-900 text-white rounded-xl px-6 py-3 text-sm font-semibold">
-          ← Retour au dashboard
-        </button>
-      </div>
-    </main>
-  );
-
   return (
     <main className="min-h-screen bg-white text-gray-900">
       <div className="max-w-2xl mx-auto px-6 py-12">
+
         <button onClick={() => router.push("/dashboard")} className="text-sm text-gray-400 hover:text-gray-900 transition mb-8 flex items-center gap-1">
           ← Retour
         </button>
@@ -277,7 +258,7 @@ function CompetitionContent() {
                 <div className="flex items-center gap-3">
                   {isSelected && <span className="text-white text-xs">✓</span>}
                   <span className="font-medium text-sm">{athlete.name}</span>
-                  <span className="text-xs text-gray-400">{athlete.country}</span>
+                  <span className={`text-xs ${isSelected ? "text-gray-400" : "text-gray-400"}`}>{athlete.country}</span>
                 </div>
                 <span className={`text-xs font-semibold ${isSelected ? "text-gray-300" : getRankingColor(athlete.ranking)}`}>
                   {getRankingLabel(athlete.ranking)}
