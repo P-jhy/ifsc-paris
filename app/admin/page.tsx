@@ -1,4 +1,3 @@
-cat > app/admin/page.tsx << 'ENDOFFILE'
 "use client";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -83,7 +82,7 @@ function getRankingBonusFromRules(rank: number, ruleMap: Map<string, number>, ph
   return getRulePoints(ruleMap, keys.other, 0);
 }
 
-function ChosenOneStatus({ compId, onReset }: { compId: string; onReset: () => void }) {
+function ChosenOneStatus({ compId, supabase, onReset }: { compId: string; supabase: any; onReset: () => void }) {
   const [current, setCurrent] = useState<{ athlete_name: string; revealed_at: string } | null>(null);
 
   useEffect(() => {
@@ -314,45 +313,6 @@ export default function AdminPage() {
     setTimeout(() => setMessage(null), 3000);
   };
 
-  const tirageAuSort = async () => {
-    if (voters.chosen.length === 0) { setMessage("Aucune proposition à tirer au sort !"); return; }
-    const random = voters.chosen[Math.floor(Math.random() * voters.chosen.length)];
-    const proposer = profiles.find(p => p.username === random.username);
-    await supabase.from("chosen_one").upsert({
-      competition_id: selectedComp,
-      athlete_name: random.athlete,
-      proposed_by: proposer?.id || null,
-      revealed_at: new Date().toISOString(),
-    }, { onConflict: "competition_id" });
-    setMessage(`⭐ L'élu est : ${random.athlete} (proposé par ${random.username}) !`);
-  };
-
-  const calculerPointsChosenOne = async () => {
-    const input = document.getElementById("chosen-rank-input") as HTMLInputElement;
-    const rank = parseInt(input.value);
-    if (!rank) { setMessage("Entre un rang valide."); return; }
-    const { data: chosen } = await supabase.from("chosen_one").select("athlete_name").eq("competition_id", selectedComp).single();
-    if (!chosen) { setMessage("Aucun élu trouvé pour cette étape."); return; }
-    const { data: picks } = await supabase.from("chosen_one_picks").select("user_id, predicted_rank").eq("competition_id", selectedComp);
-    for (const pick of picks || []) {
-      const diff = Math.abs(pick.predicted_rank - rank);
-      let pts = 0;
-      if (diff === 0) pts = 20;
-      else if (diff <= 2) pts = 10;
-      else if (diff <= 5) pts = 5;
-      else if (diff <= 10) pts = 2;
-      await supabase.from("scores").upsert({
-        user_id: pick.user_id,
-        competition_id: `${selectedComp}-chosen`,
-        genre: "chosen",
-        phase1_points: pts,
-        phase2_points: 0,
-        total_points: pts,
-      }, { onConflict: "user_id,competition_id,genre" });
-    }
-    setMessage(`✓ Points Chosen One calculés ! Rang réel : #${rank}`);
-  };
-
   if (loading) return (
     <main className="min-h-screen bg-white flex items-center justify-center">
       <p className="text-gray-400 text-sm">Chargement...</p>
@@ -376,7 +336,7 @@ export default function AdminPage() {
           <h1 className="text-2xl font-semibold">Panel Admin</h1>
         </div>
         {message && <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-xl text-green-700 text-sm font-medium">{message}</div>}
-        <div className="flex gap-2 mb-8 border-b border-gray-100 pb-4 flex-wrap">
+        <div className="flex gap-2 mb-8 border-b border-gray-100 pb-4">
           {tabs.map(t => (
             <button key={t.id} onClick={() => setTab(t.id)}
               className={`text-sm font-medium rounded-full px-4 py-1.5 transition ${tab === t.id ? "bg-gray-900 text-white" : "text-gray-500 hover:text-gray-900"}`}>
@@ -395,7 +355,7 @@ export default function AdminPage() {
                 </button>
               ))}
             </div>
-            <div className="flex gap-2 mb-4">
+            <div className="flex gap-2 mb-6">
               {["hommes", "femmes"].map(g => (
                 <button key={g} onClick={() => setSelectedGenre(g)}
                   className={`text-sm font-medium rounded-full px-4 py-1.5 transition ${selectedGenre === g ? "bg-gray-900 text-white" : "border border-gray-200 text-gray-500"}`}>
@@ -403,8 +363,7 @@ export default function AdminPage() {
                 </button>
               ))}
             </div>
-            <button onClick={loadVoters}
-              className="w-full h-10 border border-gray-200 hover:bg-gray-50 rounded-xl text-sm font-medium transition mb-4">
+            <button onClick={loadVoters} className="w-full h-10 border border-gray-200 hover:bg-gray-50 rounded-xl text-sm font-medium transition mb-4">
               🔄 Rafraîchir les votes
             </button>
             <div className="grid grid-cols-2 gap-4 mb-4">
@@ -429,9 +388,7 @@ export default function AdminPage() {
             </div>
             <div className="border border-gray-100 rounded-2xl p-5">
               <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">⭐ Chosen One — {voters.chosen.length} propositions</p>
-              {voters.chosen.length === 0 ? (
-                <p className="text-gray-300 text-sm">Aucune proposition</p>
-              ) : voters.chosen.map((p, i) => (
+              {voters.chosen.length === 0 ? <p className="text-gray-300 text-sm">Aucune proposition</p> : voters.chosen.map((p, i) => (
                 <div key={i} className="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
                   <span className="text-sm font-medium text-gray-900">{p.username}</span>
                   <span className="text-sm text-gray-500">{p.athlete}</span>
@@ -489,16 +446,13 @@ export default function AdminPage() {
                 ))}
               </div>
             </div>
-            <button onClick={saveFinalistes} disabled={saving}
-              className="w-full h-11 border border-gray-200 hover:bg-gray-50 rounded-xl text-sm font-semibold transition mb-3 disabled:opacity-60">
+            <button onClick={saveFinalistes} disabled={saving} className="w-full h-11 border border-gray-200 hover:bg-gray-50 rounded-xl text-sm font-semibold transition mb-3 disabled:opacity-60">
               {saving ? "Sauvegarde..." : "Sauvegarder tout"}
             </button>
-            <button onClick={calculateScores} disabled={calculating}
-              className="w-full h-11 bg-gray-900 hover:bg-gray-700 text-white rounded-xl text-sm font-semibold transition mb-3 disabled:opacity-60">
+            <button onClick={calculateScores} disabled={calculating} className="w-full h-11 bg-gray-900 hover:bg-gray-700 text-white rounded-xl text-sm font-semibold transition mb-3 disabled:opacity-60">
               {calculating ? "Calcul en cours..." : "Calculer les scores →"}
             </button>
-            <button onClick={resetScores}
-              className="w-full h-11 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 rounded-xl text-sm font-semibold transition">
+            <button onClick={resetScores} className="w-full h-11 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 rounded-xl text-sm font-semibold transition">
               Réinitialiser les scores
             </button>
           </div>
@@ -562,8 +516,7 @@ export default function AdminPage() {
                   ))}
                 </div>
               )}
-              <button onClick={saveScoringRules} disabled={rulesSaving || rulesLoading}
-                className="mt-5 h-11 border border-gray-200 hover:bg-gray-50 rounded-xl text-sm font-semibold transition px-4 disabled:opacity-60">
+              <button onClick={saveScoringRules} disabled={rulesSaving || rulesLoading} className="mt-5 h-11 border border-gray-200 hover:bg-gray-50 rounded-xl text-sm font-semibold transition px-4 disabled:opacity-60">
                 {rulesSaving ? "Sauvegarde..." : "Sauvegarder les règles"}
               </button>
             </div>
@@ -593,8 +546,7 @@ export default function AdminPage() {
                     className="w-24 h-10 rounded-xl border border-gray-200 px-3 text-sm outline-none focus:border-gray-400 transition"/>
                   <input type="text" value={overrideNote} onChange={e => setOverrideNote(e.target.value)} placeholder="Note (optionnelle)"
                     className="flex-1 h-10 rounded-xl border border-gray-200 px-3 text-sm outline-none focus:border-gray-400 transition"/>
-                  <button onClick={addOverride} disabled={overrideSaving}
-                    className="h-10 border border-gray-200 hover:bg-gray-50 rounded-xl text-sm font-semibold transition px-4 disabled:opacity-60">
+                  <button onClick={addOverride} disabled={overrideSaving} className="h-10 border border-gray-200 hover:bg-gray-50 rounded-xl text-sm font-semibold transition px-4 disabled:opacity-60">
                     {overrideSaving ? "..." : "Ajouter"}
                   </button>
                 </div>
@@ -608,8 +560,7 @@ export default function AdminPage() {
                           <p className="text-sm font-semibold text-gray-900">{o.athlete_name}</p>
                           <p className="text-xs text-gray-400">{o.points} pts{o.note ? ` · ${o.note}` : ""}</p>
                         </div>
-                        <button onClick={() => deleteOverride(o.id)}
-                          className="text-xs font-semibold rounded-full px-3 py-1.5 bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 transition">
+                        <button onClick={() => deleteOverride(o.id)} className="text-xs font-semibold rounded-full px-3 py-1.5 bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 transition">
                           Supprimer
                         </button>
                       </div>
@@ -630,40 +581,78 @@ export default function AdminPage() {
                 </button>
               ))}
             </div>
-
-            <ChosenOneStatus compId={selectedComp} onReset={async () => {
-              if (!confirm("Réinitialiser le Chosen One ? Cela supprime l'élu actuel ET toutes les propositions.")) return;
+            <ChosenOneStatus compId={selectedComp} supabase={supabase} onReset={async () => {
+              if (!confirm("Réinitialiser le Chosen One ? Cela supprime l'élu actuel ET toutes les propositions pour cette étape.")) return;
               await supabase.from("chosen_one").delete().eq("competition_id", selectedComp);
               await supabase.from("chosen_one_proposals").delete().eq("competition_id", selectedComp);
               setVoters(v => ({ ...v, chosen: [] }));
-              setMessage("✓ Chosen One réinitialisé !");
+              setMessage("✓ Chosen One réinitialisé ! Les joueurs peuvent re-proposer.");
               setTimeout(() => setMessage(null), 4000);
             }} />
-
             <div className="border border-gray-100 rounded-2xl p-5 mb-4">
-              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4">Propositions reçues — {voters.chosen.length}</p>
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4">Propositions reçues</p>
               {voters.chosen.length === 0 ? (
                 <p className="text-gray-300 text-sm">Aucune proposition pour cette étape.</p>
-              ) : voters.chosen.map((p, i) => (
-                <div key={i} className="flex items-center justify-between py-3 border-b border-gray-50 last:border-0">
-                  <span className="text-sm font-medium text-gray-900">{p.username}</span>
-                  <span className="text-sm text-gray-500">{p.athlete}</span>
+              ) : (
+                <div className="divide-y divide-gray-100">
+                  {voters.chosen.map((p, i) => (
+                    <div key={i} className="flex items-center justify-between py-3">
+                      <span className="text-sm font-medium text-gray-900">{p.username}</span>
+                      <span className="text-sm text-gray-500">{p.athlete}</span>
+                    </div>
+                  ))}
                 </div>
-              ))}
+              )}
             </div>
-
-            <button onClick={tirageAuSort}
+            <button
+              onClick={async () => {
+                if (voters.chosen.length === 0) { setMessage("Aucune proposition à tirer au sort !"); return; }
+                const random = voters.chosen[Math.floor(Math.random() * voters.chosen.length)];
+                const proposer = profiles.find(p => p.username === random.username);
+                await supabase.from("chosen_one").upsert({
+                  competition_id: selectedComp,
+                  athlete_name: random.athlete,
+                  proposed_by: proposer?.id || null,
+                  revealed_at: new Date().toISOString(),
+                }, { onConflict: "competition_id" });
+                setMessage(`⭐ L'élu est : ${random.athlete} (proposé par ${random.username}) !`);
+              }}
               className="w-full h-11 bg-amber-500 hover:bg-amber-400 text-white rounded-xl font-semibold text-sm transition mb-4">
               🎲 Tirer au sort l'Élu
             </button>
-
             <div className="border border-gray-100 rounded-2xl p-5">
-              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Rang officiel en qualifs</p>
-              <p className="text-sm text-gray-500 mb-4">Entre le rang réel de l'Élu pour calculer les points.</p>
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4">Entrer le rang officiel en qualifs</p>
+              <p className="text-sm text-gray-500 mb-4">Une fois les qualifications terminées, entre le rang réel de l'Élu pour calculer les points.</p>
               <div className="flex gap-3">
-                <input type="number" min="1" max="200" placeholder="Ex: 14" id="chosen-rank-input"
+                <input type="number" min="1" max="200" placeholder="Rang officiel (ex: 14)"
+                  id="chosen-rank-input"
                   className="flex-1 h-11 rounded-xl border border-gray-200 px-4 text-sm outline-none focus:border-gray-400 transition"/>
-                <button onClick={calculerPointsChosenOne}
+                <button
+                  onClick={async () => {
+                    const input = document.getElementById("chosen-rank-input") as HTMLInputElement;
+                    const rank = parseInt(input.value);
+                    if (!rank) { setMessage("Entre un rang valide."); return; }
+                    const { data: chosen } = await supabase.from("chosen_one").select("athlete_name").eq("competition_id", selectedComp).single();
+                    if (!chosen) { setMessage("Aucun élu trouvé pour cette étape."); return; }
+                    const { data: picks } = await supabase.from("chosen_one_picks").select("user_id, predicted_rank").eq("competition_id", selectedComp);
+                    for (const pick of picks || []) {
+                      const diff = Math.abs(pick.predicted_rank - rank);
+                      let pts = 0;
+                      if (diff === 0) pts = 20;
+                      else if (diff <= 2) pts = 10;
+                      else if (diff <= 5) pts = 5;
+                      else if (diff <= 10) pts = 2;
+                      await supabase.from("scores").upsert({
+                        user_id: pick.user_id,
+                        competition_id: `${selectedComp}-chosen`,
+                        genre: "chosen",
+                        phase1_points: pts,
+                        phase2_points: 0,
+                        total_points: pts,
+                      }, { onConflict: "user_id,competition_id,genre" });
+                    }
+                    setMessage(`✓ Points Chosen One calculés ! Rang réel : #${rank}`);
+                  }}
                   className="h-11 bg-gray-900 hover:bg-gray-700 text-white rounded-xl px-5 text-sm font-semibold transition">
                   Calculer les points
                 </button>
@@ -671,8 +660,8 @@ export default function AdminPage() {
             </div>
           </div>
         )}
+
       </div>
     </main>
   );
 }
-ENDOFFILE
