@@ -12,7 +12,7 @@ const AVATARS = [
   "CLIMBETE (10).png",
   "CLIMBETE (11).png",
   "CLIMBETE (12).png",
-  "ClIMBETE (8).png",
+  "CLIMBETE (8).png",
   "CLIMBETE (7).png",
   "CLIMBETE (4).png",
   "CLIMBETE (6).png",
