@@ -5,10 +5,17 @@ import { supabase } from "@/lib/supabase";
 
 const AVATARS = [
   "CLIMBETE.png",
-  "CLIMBETE (1).png",
+  "CLIMBETE (5).png",
   "CLIMBETE (2).png",
   "CLIMBETE (3).png",
+  "CLIMBETE (9).png",
+  "CLIMBETE (10).png",
+  "CLIMBETE (11).png",
+  "CLIMBETE (12).png",
+  "ClIMBETE (8).png",
+  "CLIMBETE (7).png",
   "CLIMBETE (4).png",
+  "CLIMBETE (6).png",
 ];
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
