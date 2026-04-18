@@ -134,6 +134,8 @@ export default function AdminPage() {
   const [overridePoints, setOverridePoints] = useState(0);
   const [overrideNote, setOverrideNote] = useState("");
   const [overrideSaving, setOverrideSaving] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<Record<string, string>>({});
+  const [syncing, setSyncing] = useState<string | null>(null);
 
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data }) => {
@@ -313,6 +315,35 @@ export default function AdminPage() {
     setTimeout(() => setMessage(null), 3000);
   };
 
+  const syncFromIFSC = async (competitionId: string, genre: 'hommes' | 'femmes', mode: 'semis' | 'finale') => {
+    const key = `${competitionId}-${genre}-${mode}`
+    setSyncing(key)
+    setSyncStatus(prev => ({ ...prev, [key]: '⏳ Synchronisation...' }))
+    try {
+      const { data: sessionData } = await supabase.auth.getSession()
+      const token = sessionData.session?.access_token
+      const res = await fetch('/api/sync-ifsc', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ competitionId, genre, mode }),
+      })
+      const data = await res.json()
+      if (res.ok) {
+        setSyncStatus(prev => ({ ...prev, [key]: `✅ ${data.message}` }))
+        await loadResultats()
+      } else {
+        setSyncStatus(prev => ({ ...prev, [key]: `❌ ${data.error}` }))
+      }
+    } catch {
+      setSyncStatus(prev => ({ ...prev, [key]: '❌ Erreur réseau' }))
+    } finally {
+      setSyncing(null)
+    }
+  };
+
   if (loading) return (
     <main className="min-h-screen bg-white flex items-center justify-center">
       <p className="text-gray-400 text-sm">Chargement...</p>
@@ -446,6 +477,43 @@ export default function AdminPage() {
                 ))}
               </div>
             </div>
+            {/* === BLOC SYNC IFSC === */}
+            <div className="border border-blue-100 bg-blue-50 rounded-2xl p-5 mb-4">
+  <p className="text-xs font-semibold text-blue-400 uppercase tracking-wider mb-3">
+    🔄 Sync automatique depuis IFSC
+  </p>
+  {(['hommes', 'femmes'] as const).map(genre => (
+    <div key={genre} className="mb-4">
+      <p className="text-xs font-medium text-blue-600 mb-2">
+        {genre === 'hommes' ? '👨 Hommes' : '👩 Femmes'}
+      </p>
+      <div className="flex gap-2">
+        {(['semis', 'finale'] as const).map(mode => {
+          const key = `${selectedComp}-${genre}-${mode}`
+          const isConfigured = ['keqiao-2026'].includes(selectedComp)
+          return (
+            <div key={mode} className="flex-1">
+              <button
+                onClick={() => syncFromIFSC(selectedComp, genre, mode)}
+                disabled={!isConfigured || syncing === key}
+                className="w-full h-10 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-semibold transition disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                {syncing === key ? '⏳' : '🔄'} {mode === 'semis' ? 'Semis → Top 8' : 'Finale → Podium'}
+              </button>
+              {syncStatus[key] && (
+                <p className="text-xs mt-1 text-blue-700 break-words">{syncStatus[key]}</p>
+              )}
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  ))}
+  <p className="text-xs text-blue-400 mt-1">
+    ⚠️ Semis remplit le top 8 uniquement. Finale remplit top 8 + podium.
+  </p>
+</div>
+{/* === FIN BLOC SYNC IFSC === */}
             <button onClick={saveFinalistes} disabled={saving} className="w-full h-11 border border-gray-200 hover:bg-gray-50 rounded-xl text-sm font-semibold transition mb-3 disabled:opacity-60">
               {saving ? "Sauvegarde..." : "Sauvegarder tout"}
             </button>
