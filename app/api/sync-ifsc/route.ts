@@ -155,45 +155,112 @@ export async function POST(req: NextRequest) {
     }
 
     // ===== ACTION : SYNC INSCRITS =====
-    if (action === 'sync-registrations') {
-      const url = `${IFSC_BASE_URL}/events/${config.eventId}/registrations`
-      const res = await fetch(url, { cache: 'no-store', headers: IFSC_HEADERS })
-      console.log('IFSC registrations status:', res.status)
-      if (!res.ok) return NextResponse.json({ error: `IFSC API error: ${res.status}` }, { status: 502 })
+if (action === 'sync-registrations') {
+  const url = `${IFSC_BASE_URL}/events/${config.eventId}/registrations`
+  const res = await fetch(url, { cache: 'no-store', headers: IFSC_HEADERS })
+  console.log('IFSC registrations status:', res.status)
+  if (!res.ok) return NextResponse.json({ error: `IFSC API error: ${res.status}` }, { status: 502 })
 
-      const registrations: IFSCAthlete[] = await res.json()
+  const registrations: IFSCAthlete[] = await res.json()
 
-      const hommes = registrations.filter(a => a.d_cats.some(d => d.id === 3))
-      const femmes = registrations.filter(a => a.d_cats.some(d => d.id === 7))
+  const hommes = registrations.filter(a => a.d_cats.some(d => d.id === 3))
+  const femmes = registrations.filter(a => a.d_cats.some(d => d.id === 7))
 
-      const formatName = (a: IFSCAthlete) => `${a.firstname} ${a.lastname}`
+  const formatName = (a: IFSCAthlete) => `${a.firstname} ${a.lastname}`
 
-      const toRow = (a: IFSCAthlete, g: string) => {
+  // Fonction pour calculer les stats boulder d'un athlète
+  const getAthleteStats = async (athleteId: number) => {
+    try {
+      const res = await fetch(`${IFSC_BASE_URL}/athletes/${athleteId}`, {
+        cache: 'no-store',
+        headers: IFSC_HEADERS,
+      })
+      if (!res.ok) return { photo_url: null, best_result_recent: null, best_result_alltime: null }
+
+      const data = await res.json()
+
+      const photo_url = data.photo_url || null
+
+      // Filtrer uniquement les résultats boulder en senior
+      const boulderResults = (data.all_results || []).filter((r: any) =>
+        r.discipline === 'boulder' && r.category_name === 'Women' || r.category_name === 'Men'
+      )
+
+      // Priorité des événements pour all time
+      const eventPriority = (name: string) => {
+        if (name.toLowerCase().includes('olympic')) return 4
+        if (name.toLowerCase().includes('world championship') || name.toLowerCase().includes('world championships')) return 3
+        if (name.toLowerCase().includes('world cup')) return 2
+        return 1
+      }
+
+      // Best recent : meilleur rang parmi les 5 derniers événements boulder
+      const recent5 = boulderResults.slice(0, 5)
+      let best_result_recent = null
+      if (recent5.length > 0) {
+        const best = recent5.reduce((a: any, b: any) => {
+          if (a.rank !== b.rank) return a.rank < b.rank ? a : b
+          return eventPriority(a.event_name) >= eventPriority(b.event_name) ? a : b
+        })
+        best_result_recent = `#${best.rank} ${best.event_name.replace(/IFSC (Climbing )?World Cup /i, 'WC ').replace(/IFSC (Climbing )?World Championships? /i, 'WCh ').substring(0, 40)}`
+      }
+
+      // Best all time : meilleur rang tous temps boulder
+      let best_result_alltime = null
+      if (boulderResults.length > 0) {
+        const best = boulderResults.reduce((a: any, b: any) => {
+          if (a.rank !== b.rank) return a.rank < b.rank ? a : b
+          return eventPriority(a.event_name) >= eventPriority(b.event_name) ? a : b
+        })
+        best_result_alltime = `#${best.rank} ${best.event_name.replace(/IFSC (Climbing )?World Cup /i, 'WC ').replace(/IFSC (Climbing )?World Championships? /i, 'WCh ').substring(0, 40)}`
+      }
+
+      return { photo_url, best_result_recent, best_result_alltime }
+    } catch {
+      return { photo_url: null, best_result_recent: null, best_result_alltime: null }
+    }
+  }
+
+  // Construire les rows avec stats (en parallèle par batch de 5 pour pas surcharger)
+  const allAthletes = [
+    ...hommes.map(a => ({ ...a, genre: 'hommes' })),
+    ...femmes.map(a => ({ ...a, genre: 'femmes' })),
+  ]
+
+  const rows = []
+  for (let i = 0; i < allAthletes.length; i += 5) {
+    const batch = allAthletes.slice(i, i + 5)
+    const batchResults = await Promise.all(
+      batch.map(async a => {
+        const stats = await getAthleteStats(a.athlete_id)
         const name = formatName(a)
         return {
           competition_id: competitionId,
-          genre: g,
+          genre: a.genre,
           name,
           country: a.country,
           world_ranking: worldRankings[name] ?? 999,
+          athlete_id: a.athlete_id,
+          photo_url: stats.photo_url,
+          best_result_recent: stats.best_result_recent,
+          best_result_alltime: stats.best_result_alltime,
         }
-      }
-
-      const rows = [
-        ...hommes.map(a => toRow(a, 'hommes')),
-        ...femmes.map(a => toRow(a, 'femmes')),
-      ]
-
-      await supabase.from('athletes').delete().eq('competition_id', competitionId)
-      const { error } = await supabase.from('athletes').insert(rows)
-
-      if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-
-      return NextResponse.json({
-        success: true,
-        message: `${hommes.length} hommes et ${femmes.length} femmes synchronisés`,
       })
-    }
+    )
+    rows.push(...batchResults)
+    console.log(`Traité ${Math.min(i + 5, allAthletes.length)}/${allAthletes.length} athlètes`)
+  }
+
+  await supabase.from('athletes').delete().eq('competition_id', competitionId)
+  const { error } = await supabase.from('athletes').insert(rows)
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  return NextResponse.json({
+    success: true,
+    message: `${hommes.length} hommes et ${femmes.length} femmes synchronisés avec photos et stats`,
+  })
+}
 
     return NextResponse.json({ error: 'Action inconnue' }, { status: 400 })
 
