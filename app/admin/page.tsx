@@ -136,6 +136,9 @@ export default function AdminPage() {
   const [overrideSaving, setOverrideSaving] = useState(false);
   const [syncStatus, setSyncStatus] = useState<Record<string, string>>({});
   const [syncing, setSyncing] = useState<string | null>(null);
+  const [syncRegStatus, setSyncRegStatus] = useState<Record<string, string>>({})
+  const [syncingReg, setSyncingReg] = useState<string | null>(null)
+
 
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data }) => {
@@ -293,7 +296,6 @@ export default function AdminPage() {
     setOverrides((data || []) as AthleteOverride[]);
     setOverridesLoading(false);
   };
-
   const addOverride = async () => {
     const athleteName = overrideAthlete.trim();
     if (!athleteName) return;
@@ -328,7 +330,7 @@ export default function AdminPage() {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`,
         },
-        body: JSON.stringify({ competitionId, genre, mode }),
+        body: JSON.stringify({ action: 'sync-results', competitionId, genre, mode }),
       })
       const data = await res.json()
       if (res.ok) {
@@ -341,6 +343,33 @@ export default function AdminPage() {
       setSyncStatus(prev => ({ ...prev, [key]: '❌ Erreur réseau' }))
     } finally {
       setSyncing(null)
+    }
+  };
+
+  const syncRegistrations = async (competitionId: string) => {
+    setSyncingReg(competitionId)
+    setSyncRegStatus(prev => ({ ...prev, [competitionId]: '⏳ Synchronisation...' }))
+    try {
+      const { data: sessionData } = await supabase.auth.getSession()
+      const token = sessionData.session?.access_token
+      const res = await fetch('/api/sync-ifsc', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ action: 'sync-registrations', competitionId }),
+      })
+      const data = await res.json()
+      if (res.ok) {
+        setSyncRegStatus(prev => ({ ...prev, [competitionId]: `✅ ${data.message}` }))
+      } else {
+        setSyncRegStatus(prev => ({ ...prev, [competitionId]: `❌ ${data.error}` }))
+      }
+    } catch {
+      setSyncRegStatus(prev => ({ ...prev, [competitionId]: '❌ Erreur réseau' }))
+    } finally {
+      setSyncingReg(null)
     }
   };
 
@@ -428,103 +457,123 @@ export default function AdminPage() {
             </div>
           </div>
         )}
+{tab === "resultats" && (
+  <div>
+    <div className="flex flex-wrap gap-2 mb-4">
+      {competitions.map(c => (
+        <button key={c.id} onClick={() => setSelectedComp(c.id)}
+          className={`text-sm font-medium rounded-full px-3 py-1.5 transition ${selectedComp === c.id ? "bg-gray-900 text-white" : "border border-gray-200 text-gray-500 hover:bg-gray-50"}`}>
+          {c.flag} {c.name}
+        </button>
+      ))}
+    </div>
+    <div className="flex gap-2 mb-6">
+      {["hommes", "femmes"].map(g => (
+        <button key={g} onClick={() => setSelectedGenre(g)}
+          className={`text-sm font-medium rounded-full px-4 py-1.5 transition ${selectedGenre === g ? "bg-gray-900 text-white" : "border border-gray-200 text-gray-500"}`}>
+          {g === "hommes" ? "Hommes" : "Femmes"}
+        </button>
+      ))}
+    </div>
 
-        {tab === "resultats" && (
-          <div>
-            <div className="flex flex-wrap gap-2 mb-4">
-              {competitions.map(c => (
-                <button key={c.id} onClick={() => setSelectedComp(c.id)}
-                  className={`text-sm font-medium rounded-full px-3 py-1.5 transition ${selectedComp === c.id ? "bg-gray-900 text-white" : "border border-gray-200 text-gray-500 hover:bg-gray-50"}`}>
-                  {c.flag} {c.name}
-                </button>
-              ))}
-            </div>
-            <div className="flex gap-2 mb-6">
-              {["hommes", "femmes"].map(g => (
-                <button key={g} onClick={() => setSelectedGenre(g)}
-                  className={`text-sm font-medium rounded-full px-4 py-1.5 transition ${selectedGenre === g ? "bg-gray-900 text-white" : "border border-gray-200 text-gray-500"}`}>
-                  {g === "hommes" ? "Hommes" : "Femmes"}
-                </button>
-              ))}
-            </div>
-            <div className="border border-gray-100 rounded-2xl overflow-hidden mb-4">
-              <div className="px-5 py-4 border-b border-gray-100 bg-gray-50">
-                <p className="text-sm font-semibold text-gray-700">Top 8 finalistes</p>
-              </div>
-              <div className="p-5 grid gap-3">
-                {finalistes.map((f, i) => (
-                  <div key={i} className="flex items-center gap-3">
-                    <span className="text-xs font-bold text-gray-300 w-4">{i + 1}</span>
-                    <input type="text" value={f} placeholder={`Finaliste ${i + 1}`}
-                      onChange={e => { const n = [...finalistes]; n[i] = e.target.value; setFinalistes(n); }}
-                      className="flex-1 h-10 rounded-xl border border-gray-200 px-3 text-sm outline-none focus:border-gray-400 transition"/>
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div className="border border-gray-100 rounded-2xl overflow-hidden mb-4">
-              <div className="px-5 py-4 border-b border-gray-100 bg-gray-50">
-                <p className="text-sm font-semibold text-gray-700">Podium officiel</p>
-              </div>
-              <div className="p-5 grid gap-3">
-                {[{ label: "🥇 Vainqueur", key: "gold" }, { label: "🥈 2ème", key: "silver" }, { label: "🥉 3ème", key: "bronze" }].map(({ label, key }) => (
-                  <div key={key} className="flex items-center gap-3">
-                    <span className="text-sm w-24">{label}</span>
-                    <input type="text" value={podium[key as keyof typeof podium]} placeholder="Nom"
-                      onChange={e => setPodium({ ...podium, [key]: e.target.value })}
-                      className="flex-1 h-10 rounded-xl border border-gray-200 px-3 text-sm outline-none focus:border-gray-400 transition"/>
-                  </div>
-                ))}
-              </div>
-            </div>
-            {/* === BLOC SYNC IFSC === */}
-            <div className="border border-blue-100 bg-blue-50 rounded-2xl p-5 mb-4">
-  <p className="text-xs font-semibold text-blue-400 uppercase tracking-wider mb-3">
-    🔄 Sync automatique depuis IFSC
-  </p>
-  {(['hommes', 'femmes'] as const).map(genre => (
-    <div key={genre} className="mb-4">
-      <p className="text-xs font-medium text-blue-600 mb-2">
-        {genre === 'hommes' ? '👨 Hommes' : '👩 Femmes'}
+    {/* === BLOC SYNC RÉSULTATS === */}
+    <div className="border border-blue-100 bg-blue-50 rounded-2xl p-5 mb-4">
+      <p className="text-xs font-semibold text-blue-400 uppercase tracking-wider mb-3">
+        🔄 Sync résultats depuis IFSC
       </p>
-      <div className="flex gap-2">
-        {(['semis', 'finale'] as const).map(mode => {
-          const key = `${selectedComp}-${genre}-${mode}`
-          const isConfigured = ['keqiao-2026'].includes(selectedComp)
-          return (
-            <div key={mode} className="flex-1">
-              <button
-                onClick={() => syncFromIFSC(selectedComp, genre, mode)}
-                disabled={!isConfigured || syncing === key}
-                className="w-full h-10 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-semibold transition disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                {syncing === key ? '⏳' : '🔄'} {mode === 'semis' ? 'Semis → Top 8' : 'Finale → Podium'}
-              </button>
-              {syncStatus[key] && (
-                <p className="text-xs mt-1 text-blue-700 break-words">{syncStatus[key]}</p>
-              )}
-            </div>
-          )
-        })}
+      {(['hommes', 'femmes'] as const).map(genre => (
+        <div key={genre} className="mb-4">
+          <p className="text-xs font-medium text-blue-600 mb-2">
+            {genre === 'hommes' ? '👨 Hommes' : '👩 Femmes'}
+          </p>
+          <div className="flex gap-2">
+            {(['semis', 'finale'] as const).map(mode => {
+              const key = `${selectedComp}-${genre}-${mode}`
+              const isConfigured = ['keqiao-2026'].includes(selectedComp)
+              return (
+                <div key={mode} className="flex-1">
+                  <button
+                    onClick={() => syncFromIFSC(selectedComp, genre, mode)}
+                    disabled={!isConfigured || syncing === key}
+                    className="w-full h-10 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-semibold transition disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    {syncing === key ? '⏳' : '🔄'} {mode === 'semis' ? 'Semis → Top 8' : 'Finale → Podium'}
+                  </button>
+                  {syncStatus[key] && (
+                    <p className="text-xs mt-1 text-blue-700 break-words">{syncStatus[key]}</p>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      ))}
+      <p className="text-xs text-blue-400 mt-1">
+        ⚠️ Semis remplit le top 8 uniquement. Finale remplit top 8 + podium.
+      </p>
+    </div>
+
+    {/* === BLOC SYNC INSCRITS === */}
+    <div className="border border-green-100 bg-green-50 rounded-2xl p-5 mb-4">
+      <p className="text-xs font-semibold text-green-400 uppercase tracking-wider mb-3">
+        👥 Sync inscrits depuis IFSC
+      </p>
+      <button
+        onClick={() => syncRegistrations(selectedComp)}
+        disabled={syncingReg === selectedComp}
+        className="w-full h-10 bg-green-600 hover:bg-green-700 text-white rounded-xl text-sm font-semibold transition disabled:opacity-40 disabled:cursor-not-allowed"
+      >
+        {syncingReg === selectedComp ? '⏳' : '👥'} Sync inscrits ({selectedComp})
+      </button>
+      {syncRegStatus[selectedComp] && (
+        <p className="text-xs mt-2 text-green-700">{syncRegStatus[selectedComp]}</p>
+      )}
+      <p className="text-xs text-green-400 mt-2">
+        Synchronise hommes + femmes en une fois. À faire avant d'ouvrir les votes.
+      </p>
+    </div>
+
+    <div className="border border-gray-100 rounded-2xl overflow-hidden mb-4">
+      <div className="px-5 py-4 border-b border-gray-100 bg-gray-50">
+        <p className="text-sm font-semibold text-gray-700">Top 8 finalistes</p>
+      </div>
+      <div className="p-5 grid gap-3">
+        {finalistes.map((f, i) => (
+          <div key={i} className="flex items-center gap-3">
+            <span className="text-xs font-bold text-gray-300 w-4">{i + 1}</span>
+            <input type="text" value={f} placeholder={`Finaliste ${i + 1}`}
+              onChange={e => { const n = [...finalistes]; n[i] = e.target.value; setFinalistes(n); }}
+              className="flex-1 h-10 rounded-xl border border-gray-200 px-3 text-sm outline-none focus:border-gray-400 transition"/>
+          </div>
+        ))}
       </div>
     </div>
-  ))}
-  <p className="text-xs text-blue-400 mt-1">
-    ⚠️ Semis remplit le top 8 uniquement. Finale remplit top 8 + podium.
-  </p>
-</div>
-{/* === FIN BLOC SYNC IFSC === */}
-            <button onClick={saveFinalistes} disabled={saving} className="w-full h-11 border border-gray-200 hover:bg-gray-50 rounded-xl text-sm font-semibold transition mb-3 disabled:opacity-60">
-              {saving ? "Sauvegarde..." : "Sauvegarder tout"}
-            </button>
-            <button onClick={calculateScores} disabled={calculating} className="w-full h-11 bg-gray-900 hover:bg-gray-700 text-white rounded-xl text-sm font-semibold transition mb-3 disabled:opacity-60">
-              {calculating ? "Calcul en cours..." : "Calculer les scores →"}
-            </button>
-            <button onClick={resetScores} className="w-full h-11 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 rounded-xl text-sm font-semibold transition">
-              Réinitialiser les scores
-            </button>
+    <div className="border border-gray-100 rounded-2xl overflow-hidden mb-4">
+      <div className="px-5 py-4 border-b border-gray-100 bg-gray-50">
+        <p className="text-sm font-semibold text-gray-700">Podium officiel</p>
+      </div>
+      <div className="p-5 grid gap-3">
+        {[{ label: "🥇 Vainqueur", key: "gold" }, { label: "🥈 2ème", key: "silver" }, { label: "🥉 3ème", key: "bronze" }].map(({ label, key }) => (
+          <div key={key} className="flex items-center gap-3">
+            <span className="text-sm w-24">{label}</span>
+            <input type="text" value={podium[key as keyof typeof podium]} placeholder="Nom"
+              onChange={e => setPodium({ ...podium, [key]: e.target.value })}
+              className="flex-1 h-10 rounded-xl border border-gray-200 px-3 text-sm outline-none focus:border-gray-400 transition"/>
           </div>
-        )}
+        ))}
+      </div>
+    </div>
+    <button onClick={saveFinalistes} disabled={saving} className="w-full h-11 border border-gray-200 hover:bg-gray-50 rounded-xl text-sm font-semibold transition mb-3 disabled:opacity-60">
+      {saving ? "Sauvegarde..." : "Sauvegarder tout"}
+    </button>
+    <button onClick={calculateScores} disabled={calculating} className="w-full h-11 bg-gray-900 hover:bg-gray-700 text-white rounded-xl text-sm font-semibold transition mb-3 disabled:opacity-60">
+      {calculating ? "Calcul en cours..." : "Calculer les scores →"}
+    </button>
+    <button onClick={resetScores} className="w-full h-11 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 rounded-xl text-sm font-semibold transition">
+      Réinitialiser les scores
+    </button>
+  </div>
+)}
 
         {tab === "joueurs" && (
           <div>
