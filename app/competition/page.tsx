@@ -34,6 +34,10 @@ function CompetitionContent() {
   const [isOpen, setIsOpen] = useState<boolean | null>(null);
   const [athletes, setAthletes] = useState<Athlete[]>([]);
   const [athletesLoading, setAthletesLoading] = useState(true);
+  const [ruleMap, setRuleMap] = useState<Map<string, number>>(new Map())
+const [overrideMap, setOverrideMap] = useState<Map<string, number>>(new Map())
+const [overrideNoteMap, setOverrideNoteMap] = useState<Map<string, string>>(new Map())
+
 
   useEffect(() => {
     supabase.from("competition_status").select("open")
@@ -72,6 +76,35 @@ function CompetitionContent() {
   );
 
   useEffect(() => {
+    if (!competition || !genre) return
+    // Charger les règles
+    supabase.from("scoring_rules").select("id, points").then(({ data }) => {
+      const map = new Map<string, number>()
+      const defaults: Record<string, number> = {
+        "phase1_rank_1_10": 2, "phase1_rank_11_25": 4,
+        "phase1_rank_26_50": 7, "phase1_rank_51_plus": 12,
+        "phase1_unranked": 15,
+      }
+      Object.entries(defaults).forEach(([k, v]) => map.set(k, v))
+      data?.forEach(r => map.set(r.id, Number(r.points)))
+      setRuleMap(map)
+    })
+    // Charger les overrides
+    supabase.from("athlete_point_overrides").select("athlete_name, point_override, note")
+      .eq("competition_id", competition).eq("genre", genre)
+      .then(({ data }) => {
+        const map = new Map<string, number>()
+        const noteMap = new Map<string, string>()
+        data?.forEach(o => {
+          map.set(o.athlete_name, Number(o.point_override))
+          if (o.note) noteMap.set(o.athlete_name, o.note)
+        })
+        setOverrideMap(map)
+        setOverrideNoteMap(noteMap)
+      })
+  }, [competition, genre])
+
+  useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
       if (!data.session) router.push("/login");
       else setUserId(data.session.user.id);
@@ -96,6 +129,19 @@ function CompetitionContent() {
     setLoading(false);
     setTimeout(() => router.push("/dashboard"), 1500);
   };
+
+
+  const getPoints = (name: string, ranking: number): { pts: number; note: string | null; isOverride: boolean } => {
+    if (overrideMap.has(name)) {
+      return { pts: overrideMap.get(name)!, note: overrideNoteMap.get(name) || null, isOverride: true }
+    }
+    let pts = ruleMap.get("phase1_unranked") ?? 15
+    if (ranking <= 10) pts = ruleMap.get("phase1_rank_1_10") ?? 2
+    else if (ranking <= 25) pts = ruleMap.get("phase1_rank_11_25") ?? 4
+    else if (ranking <= 50) pts = ruleMap.get("phase1_rank_26_50") ?? 7
+    else if (ranking < 999) pts = ruleMap.get("phase1_rank_51_plus") ?? 12
+    return { pts, note: null, isOverride: false }
+  }
 
   const compName = competition.split("-")[0].charAt(0).toUpperCase() + competition.split("-")[0].slice(1);
 
@@ -192,12 +238,32 @@ function CompetitionContent() {
   </p>
 </div>
 
-          {/* Ranking */}
-          <span className={`text-xs font-semibold flex-shrink-0 ${
-            isSelected ? "text-gray-300" : getRankingColor(athlete.ranking)
-          }`}>
-            {getRankingLabel(athlete.ranking)}
+         {/* Ranking + Points */}
+<div className="flex flex-col items-end flex-shrink-0 gap-0.5">
+  <span className={`text-xs font-semibold ${
+    isSelected ? "text-gray-300" : getRankingColor(athlete.ranking)
+  }`}>
+    {getRankingLabel(athlete.ranking)}
+  </span>
+  {(() => {
+    const { pts, note, isOverride } = getPoints(athlete.name, athlete.ranking)
+    return (
+      <div className="flex flex-col items-end">
+        <span className={`text-xs font-bold ${
+          isSelected ? "text-gray-300" : isOverride ? "text-purple-500" : "text-gray-500"
+        }`}>
+          +{pts}pts
+        </span>
+        {isOverride && note && (
+          <span className="text-xs text-purple-400 text-right max-w-[80px] leading-tight">
+            {note}
           </span>
+        )}
+      </div>
+    )
+  })()}
+</div>
+
 
         </button>
       )

@@ -47,7 +47,7 @@ const worldRankings: Record<string, number> = {
 type Profile = { id: string; username: string; avatar_url: string | null; hidden: boolean };
 type Tab = "votes" | "resultats" | "joueurs" | "points" | "chosen";
 type ScoringRule = { id: string; label: string; points: number };
-type AthleteOverride = { id: string; competition_id: string; genre: string; athlete_name: string; points: number; note: string | null };
+type AthleteOverride = { id: string; competition_id: string; genre: string; athlete_name: string; point_override: number; note: string | null };
 type ChosenProp = { username: string; athlete: string };
 
 const defaultScoringRules: ScoringRule[] = [
@@ -219,9 +219,9 @@ export default function AdminPage() {
       const ruleMap = new Map<string, number>();
       defaultScoringRules.forEach(r => ruleMap.set(r.id, r.points));
       rulesData?.forEach((r: { id: string; points: number }) => ruleMap.set(r.id, Number(r.points) || 0));
-      const { data: overrideRows } = await supabase.from("athlete_point_overrides").select("athlete_name, points").eq("competition_id", selectedComp).eq("genre", selectedGenre);
+      const { data: overrideRows } = await supabase.from("athlete_point_overrides").select("athlete_name, point_override").eq("competition_id", selectedComp).eq("genre", selectedGenre);
       const overrideMap = new Map<string, number>();
-      overrideRows?.forEach((o: { athlete_name: string; points: number }) => overrideMap.set(o.athlete_name, Number(o.points) || 0));
+      overrideRows?.forEach((o: { athlete_name: string; point_override: number }) => overrideMap.set(o.athlete_name, Number(o.point_override) || 0));
       const { data: allPicks1 } = await supabase.from("picks_phase1_temp").select("user_id, athlete_name").eq("competition_id", competitionGenreId);
       const { data: allPicks2 } = await supabase.from("picks_phase2_temp").select("user_id, gold_athlete, silver_athlete, bronze_athlete").eq("competition_id", competitionGenreId);
       const userIds = [...new Set([...(allPicks1?.map(p => p.user_id) || []), ...(allPicks2?.map(p => p.user_id) || [])])];
@@ -300,7 +300,7 @@ export default function AdminPage() {
     const athleteName = overrideAthlete.trim();
     if (!athleteName) return;
     setOverrideSaving(true);
-    const { error } = await supabase.from("athlete_point_overrides").insert({ competition_id: selectedComp, genre: selectedGenre, athlete_name: athleteName, points: Number(overridePoints) || 0, note: overrideNote.trim() || null });
+    const { error } = await supabase.from("athlete_point_overrides").insert({ competition_id: selectedComp, genre: selectedGenre, athlete_name: athleteName, point_override: Number(overridePoints) || 0, note: overrideNote.trim() || null });
     setOverrideSaving(false);
     if (error) { setMessage(`Erreur: ${error.message}`); return; }
     setOverrideAthlete(""); setOverridePoints(0); setOverrideNote("");
@@ -675,7 +675,7 @@ export default function AdminPage() {
                       <div key={o.id} className="flex items-center gap-3 px-4 py-3">
                         <div className="flex-1">
                           <p className="text-sm font-semibold text-gray-900">{o.athlete_name}</p>
-                          <p className="text-xs text-gray-400">{o.points} pts{o.note ? ` · ${o.note}` : ""}</p>
+                          <p className="text-xs text-gray-400">{o.point_override} pts{o.note ? ` · ${o.note}` : ""}</p>
                         </div>
                         <button onClick={() => deleteOverride(o.id)} className="text-xs font-semibold rounded-full px-3 py-1.5 bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 transition">
                           Supprimer
