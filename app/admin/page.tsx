@@ -221,8 +221,7 @@ export default function AdminPage() {
       rulesData?.forEach((r: { id: string; points: number }) => ruleMap.set(r.id, Number(r.points) || 0));
       const { data: overrideRows } = await supabase.from("athlete_point_overrides").select("athlete_name, point_override").eq("competition_id", selectedComp).eq("genre", selectedGenre);
       const overrideMap = new Map<string, number>();
-      overrideRows?.forEach((o: { athlete_name: string; point_override: number }) => overrideMap.set(o.athlete_name, Number(o.point_override) || 0));
-      const { data: allPicks1 } = await supabase.from("picks_phase1_temp").select("user_id, athlete_name").eq("competition_id", competitionGenreId);
+      overrideRows?.forEach((o: { athlete_name: string; point_override: number }) => overrideMap.set(o.athlete_name, Number(o.point_override) || 0));      const { data: allPicks1 } = await supabase.from("picks_phase1_temp").select("user_id, athlete_name").eq("competition_id", competitionGenreId);
       const { data: allPicks2 } = await supabase.from("picks_phase2_temp").select("user_id, gold_athlete, silver_athlete, bronze_athlete").eq("competition_id", competitionGenreId);
       const userIds = [...new Set([...(allPicks1?.map(p => p.user_id) || []), ...(allPicks2?.map(p => p.user_id) || [])])];
       for (const userId of userIds) {
@@ -292,7 +291,7 @@ export default function AdminPage() {
 
   const loadOverrides = async () => {
     setOverridesLoading(true);
-    const { data } = await supabase.from("athlete_point_overrides").select("id, competition_id, genre, athlete_name, points, note").eq("competition_id", selectedComp).eq("genre", selectedGenre).order("athlete_name", { ascending: true });
+    const { data } = await supabase.from("athlete_point_overrides").select("id, competition_id, genre, athlete_name, point_override, note").eq("competition_id", selectedComp).eq("genre", selectedGenre).order("athlete_name", { ascending: true });
     setOverrides((data || []) as AthleteOverride[]);
     setOverridesLoading(false);
   };
