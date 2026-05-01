@@ -15,6 +15,7 @@ type Athlete = {
   name: string
   country: string
   ranking: number
+  qualif_rank: number | null
   photo_url: string | null
   best_result_recent: string | null
   best_result_alltime: string | null
@@ -51,15 +52,17 @@ const [overrideNoteMap, setOverrideNoteMap] = useState<Map<string, string>>(new 
     setAthletes([])
     supabase
       .from("athletes")
-      .select("name, country, world_ranking, override_ranking, photo_url, best_result_recent, best_result_alltime")
+      .select("name, country, world_ranking, override_ranking, qualif_rank, photo_url, best_result_recent, best_result_alltime")
       .eq("competition_id", competition)
       .eq("genre", genre)
+      .order("qualif_rank", { ascending: true, nullsFirst: false })
       .then(({ data }) => {
         if (data && data.length > 0) {
           setAthletes(data.map(a => ({
             name: a.name,
             country: a.country,
             ranking: a.override_ranking ?? a.world_ranking,
+            qualif_rank: a.qualif_rank,
             photo_url: a.photo_url,
             best_result_recent: a.best_result_recent,
             best_result_alltime: a.best_result_alltime,
@@ -69,8 +72,7 @@ const [overrideNoteMap, setOverrideNoteMap] = useState<Map<string, string>>(new 
       })
   }, [competition, genre]);
 
-  const sorted = [...athletes].sort((a, b) => a.ranking - b.ranking);
-  const filtered = sorted.filter(a =>
+  const filtered = athletes.filter(a =>
     a.name.toLowerCase().includes(search.toLowerCase()) ||
     a.country.toLowerCase().includes(search.toLowerCase())
   );
@@ -240,10 +242,13 @@ const [overrideNoteMap, setOverrideNoteMap] = useState<Map<string, string>>(new 
 
          {/* Ranking + Points */}
 <div className="flex flex-col items-end flex-shrink-0 gap-0.5">
-  <span className={`text-xs font-semibold ${
-    isSelected ? "text-gray-300" : getRankingColor(athlete.ranking)
-  }`}>
-    {getRankingLabel(athlete.ranking)}
+  {athlete.qualif_rank && (
+    <span className={`text-xs font-semibold ${isSelected ? "text-gray-300" : "text-orange-500"}`}>
+      Qualifs #{athlete.qualif_rank}
+    </span>
+  )}
+  <span className={`text-xs ${isSelected ? "text-gray-400" : getRankingColor(athlete.ranking)}`}>
+    World {getRankingLabel(athlete.ranking)}
   </span>
   {(() => {
     const { pts, note, isOverride } = getPoints(athlete.name, athlete.ranking)

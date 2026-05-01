@@ -138,6 +138,9 @@ export default function AdminPage() {
   const [syncing, setSyncing] = useState<string | null>(null);
   const [syncRegStatus, setSyncRegStatus] = useState<Record<string, string>>({})
   const [syncingReg, setSyncingReg] = useState<string | null>(null)
+  const [syncingDemis, setSyncingDemis] = useState<string | null>(null)
+const [syncDemisStatus, setSyncDemisStatus] = useState<Record<string, string>>({})
+
 
 
   useEffect(() => {
@@ -372,6 +375,30 @@ export default function AdminPage() {
     }
   };
 
+  const syncDemis = async (competitionId: string) => {
+    setSyncingDemis(competitionId)
+    setSyncDemisStatus(prev => ({ ...prev, [competitionId]: '⏳ Synchronisation...' }))
+    try {
+      const { data: sessionData } = await supabase.auth.getSession()
+      const token = sessionData.session?.access_token
+      const res = await fetch('/api/sync-ifsc', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ action: 'sync-demis', competitionId }),
+      })
+      const data = await res.json()
+      if (res.ok) {
+        setSyncDemisStatus(prev => ({ ...prev, [competitionId]: `✅ ${data.message}` }))
+      } else {
+        setSyncDemisStatus(prev => ({ ...prev, [competitionId]: `❌ ${data.error}` }))
+      }
+    } catch {
+      setSyncDemisStatus(prev => ({ ...prev, [competitionId]: '❌ Erreur réseau' }))
+    } finally {
+      setSyncingDemis(null)
+    }
+  }
+
   if (loading) return (
     <main className="min-h-screen bg-white flex items-center justify-center">
       <p className="text-gray-400 text-sm">Chargement...</p>
@@ -531,6 +558,26 @@ export default function AdminPage() {
         Synchronise hommes + femmes en une fois. À faire avant d'ouvrir les votes.
       </p>
     </div>
+
+{/* === BLOC SYNC DEMIS === */}
+<div className="border border-orange-100 bg-orange-50 rounded-2xl p-5 mb-4">
+  <p className="text-xs font-semibold text-orange-400 uppercase tracking-wider mb-3">
+    🎯 Sync demi-finalistes depuis IFSC
+  </p>
+  <button
+    onClick={() => syncDemis(selectedComp)}
+    disabled={syncingDemis === selectedComp}
+    className="w-full h-10 bg-orange-500 hover:bg-orange-600 text-white rounded-xl text-sm font-semibold transition disabled:opacity-40 disabled:cursor-not-allowed"
+  >
+    {syncingDemis === selectedComp ? '⏳' : '🎯'} Sync demi-finalistes ({selectedComp})
+  </button>
+  {syncDemisStatus[selectedComp] && (
+    <p className="text-xs mt-2 text-orange-700">{syncDemisStatus[selectedComp]}</p>
+  )}
+  <p className="text-xs text-orange-400 mt-2">
+    Remplace les inscrits par les 24 qualifiés pour les demis. À faire après les qualifs.
+  </p>
+</div>
 
     <div className="border border-gray-100 rounded-2xl overflow-hidden mb-4">
       <div className="px-5 py-4 border-b border-gray-100 bg-gray-50">
