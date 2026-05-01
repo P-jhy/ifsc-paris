@@ -201,10 +201,10 @@ const [syncDemisStatus, setSyncDemisStatus] = useState<Record<string, string>>({
       if (!p1ByUser[p.user_id]) p1ByUser[p.user_id] = [];
       p1ByUser[p.user_id].push(p.athlete_name);
     });
-    const p1List = Object.entries(p1ByUser).map(([uid, picks]) => ({ username: getName(uid), picks }));
-    const p2List = (p2 || []).map(p => ({ username: getName(p.user_id), gold: p.gold_athlete, silver: p.silver_athlete, bronze: p.bronze_athlete }));
-    const chosenList = (chosenProps || []).map(p => ({ username: getName(p.user_id), athlete: p.athlete_name }));
-    setVoters({ p1: p1List, p2: p2List, chosen: chosenList });
+    const knownIds = new Set(freshProfiles?.map(p => p.id) || []);
+    const p1List = Object.entries(p1ByUser).filter(([uid]) => knownIds.has(uid)).map(([uid, picks]) => ({ username: getName(uid), picks }));
+    const p2List = (p2 || []).filter(p => knownIds.has(p.user_id)).map(p => ({ username: getName(p.user_id), gold: p.gold_athlete, silver: p.silver_athlete, bronze: p.bronze_athlete }));
+    const chosenList = (chosenProps || []).filter(p => knownIds.has(p.user_id)).map(p => ({ username: getName(p.user_id), athlete: p.athlete_name }));
   };
 
   const saveFinalistes = async () => {
