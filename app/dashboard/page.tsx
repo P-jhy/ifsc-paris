@@ -170,6 +170,10 @@ export default function Dashboard() {
       className="text-sm font-medium text-gray-900 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 hover:bg-gray-100 transition text-center">
       Mon profil
     </button>
+    <button onClick={() => router.push("/chat")}
+  className="text-xs font-medium text-gray-900 border border-gray-200 rounded-full px-3 py-1.5 hover:bg-gray-50 transition">
+  💬 Chat
+</button>
     {isAdmin && (
       <button onClick={() => router.push("/admin")}
         className="text-sm font-medium text-gray-900 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 hover:bg-gray-100 transition text-center">
