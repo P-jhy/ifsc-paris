@@ -122,8 +122,11 @@ export default function AdminPage() {
   const [saving, setSaving] = useState(false);
   const [calculating, setCalculating] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
-  const [voters, setVoters] = useState<{ p1: string[]; p2: string[]; chosen: ChosenProp[] }>({ p1: [], p2: [], chosen: [] });
-  const [profiles, setProfiles] = useState<Profile[]>([]);
+  const [voters, setVoters] = useState<{ 
+    p1: { username: string; picks: string[] }[]
+    p2: { username: string; gold: string; silver: string; bronze: string }[]
+    chosen: ChosenProp[] 
+  }>({ p1: [], p2: [], chosen: [] });  const [profiles, setProfiles] = useState<Profile[]>([]);
   const [compStatuses, setCompStatuses] = useState<Record<string, boolean>>({});
   const [scoringRules, setScoringRules] = useState<ScoringRule[]>(defaultScoringRules);
   const [rulesLoading, setRulesLoading] = useState(false);
@@ -187,15 +190,21 @@ const [syncDemisStatus, setSyncDemisStatus] = useState<Record<string, string>>({
   };
 
   const loadVoters = async () => {
-    const { data: p1 } = await supabase.from("picks_phase1_temp").select("user_id").eq("competition_id", `${selectedComp}-${selectedGenre}`);
-    const { data: p2 } = await supabase.from("picks_phase2_temp").select("user_id").eq("competition_id", `${selectedComp}-${selectedGenre}`);
+    const { data: p1 } = await supabase.from("picks_phase1_temp").select("user_id, athlete_name").eq("competition_id", `${selectedComp}-${selectedGenre}`);
+    const { data: p2 } = await supabase.from("picks_phase2_temp").select("user_id, gold_athlete, silver_athlete, bronze_athlete").eq("competition_id", `${selectedComp}-${selectedGenre}`);
     const { data: chosenProps } = await supabase.from("chosen_one_proposals").select("user_id, athlete_name").eq("competition_id", selectedComp);
     const { data: freshProfiles } = await supabase.from("profiles").select("id, username");
     const getName = (id: string) => freshProfiles?.find(p => p.id === id)?.username || id.substring(0, 8);
-    const p1Ids = [...new Set(p1?.map(p => p.user_id) || [])];
-    const p2Ids = [...new Set(p2?.map(p => p.user_id) || [])];
+
+    const p1ByUser: Record<string, string[]> = {};
+    p1?.forEach(p => {
+      if (!p1ByUser[p.user_id]) p1ByUser[p.user_id] = [];
+      p1ByUser[p.user_id].push(p.athlete_name);
+    });
+    const p1List = Object.entries(p1ByUser).map(([uid, picks]) => ({ username: getName(uid), picks }));
+    const p2List = (p2 || []).map(p => ({ username: getName(p.user_id), gold: p.gold_athlete, silver: p.silver_athlete, bronze: p.bronze_athlete }));
     const chosenList = (chosenProps || []).map(p => ({ username: getName(p.user_id), athlete: p.athlete_name }));
-    setVoters({ p1: p1Ids.map(getName), p2: p2Ids.map(getName), chosen: chosenList });
+    setVoters({ p1: p1List, p2: p2List, chosen: chosenList });
   };
 
   const saveFinalistes = async () => {
@@ -452,26 +461,51 @@ const [syncDemisStatus, setSyncDemisStatus] = useState<Record<string, string>>({
             <button onClick={loadVoters} className="w-full h-10 border border-gray-200 hover:bg-gray-50 rounded-xl text-sm font-medium transition mb-4">
               🔄 Rafraîchir les votes
             </button>
-            <div className="grid grid-cols-2 gap-4 mb-4">
-              <div className="border border-gray-100 rounded-2xl p-5">
-                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Phase 1 — {voters.p1.length} joueurs</p>
-                {voters.p1.length === 0 ? <p className="text-gray-300 text-sm">Aucun vote</p> : voters.p1.map(name => (
-                  <div key={name} className="flex items-center gap-2 py-2 border-b border-gray-50 last:border-0">
-                    <span className="text-green-500 text-xs">✓</span>
-                    <span className="text-sm font-medium text-gray-900">{name}</span>
-                  </div>
-                ))}
-              </div>
-              <div className="border border-gray-100 rounded-2xl p-5">
-                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Phase 2 — {voters.p2.length} joueurs</p>
-                {voters.p2.length === 0 ? <p className="text-gray-300 text-sm">Aucun vote</p> : voters.p2.map(name => (
-                  <div key={name} className="flex items-center gap-2 py-2 border-b border-gray-50 last:border-0">
-                    <span className="text-amber-500 text-xs">✓</span>
-                    <span className="text-sm font-medium text-gray-900">{name}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
+            <div className="space-y-4 mb-4">
+  <div className="border border-gray-100 rounded-2xl p-5">
+    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">
+      Phase 1 — {voters.p1.length} joueurs
+    </p>
+    {voters.p1.length === 0 ? (
+      <p className="text-gray-300 text-sm">Aucun vote</p>
+    ) : voters.p1.map(({ username, picks }) => (
+      <div key={username} className="py-3 border-b border-gray-50 last:border-0">
+        <div className="flex items-center justify-between mb-1">
+          <span className="text-sm font-semibold text-gray-900">{username}</span>
+          <span className={`text-xs font-bold rounded-full px-2 py-0.5 ${
+            picks.length === 8
+              ? "bg-green-50 text-green-600 border border-green-200"
+              : "bg-red-50 text-red-600 border border-red-200"
+          }`}>
+            {picks.length}/8 picks
+          </span>
+        </div>
+        <div className="flex flex-wrap gap-1 mt-1">
+          {picks.map(p => (
+            <span key={p} className="text-xs bg-gray-100 text-gray-600 rounded-full px-2 py-0.5">{p}</span>
+          ))}
+        </div>
+      </div>
+    ))}
+  </div>
+  <div className="border border-gray-100 rounded-2xl p-5">
+    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">
+      Phase 2 — {voters.p2.length} joueurs
+    </p>
+    {voters.p2.length === 0 ? (
+      <p className="text-gray-300 text-sm">Aucun vote</p>
+    ) : voters.p2.map(({ username, gold, silver, bronze }) => (
+      <div key={username} className="py-3 border-b border-gray-50 last:border-0">
+        <span className="text-sm font-semibold text-gray-900 block mb-1">{username}</span>
+        <div className="flex gap-2 flex-wrap">
+          <span className="text-xs bg-amber-50 text-amber-700 border border-amber-200 rounded-full px-2 py-0.5">🥇 {gold}</span>
+          <span className="text-xs bg-gray-50 text-gray-600 border border-gray-200 rounded-full px-2 py-0.5">🥈 {silver}</span>
+          <span className="text-xs bg-orange-50 text-orange-600 border border-orange-200 rounded-full px-2 py-0.5">🥉 {bronze}</span>
+        </div>
+      </div>
+    ))}
+  </div>
+</div>
             <div className="border border-gray-100 rounded-2xl p-5">
               <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">⭐ Chosen One — {voters.chosen.length} propositions</p>
               {voters.chosen.length === 0 ? <p className="text-gray-300 text-sm">Aucune proposition</p> : voters.chosen.map((p, i) => (
