@@ -14,6 +14,7 @@ function PodiumContent() {
   const [bronze, setBronze] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [isPhase2Open, setIsPhase2Open] = useState<boolean | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
 
   const compName = competition.split("-")[0].charAt(0).toUpperCase() + competition.split("-")[0].slice(1);
@@ -22,6 +23,16 @@ function PodiumContent() {
     supabase.auth.getSession().then(async ({ data }) => {
       if (!data.session) { router.push("/login"); return; }
       setUserId(data.session.user.id);
+
+      // Vérifier si phase 2 est ouverte
+      const { data: status } = await supabase
+        .from("competition_status")
+        .select("open, phase2_open")
+        .eq("competition_id", competition)
+        .single();
+      setIsPhase2Open((status?.open ?? false) && (status?.phase2_open ?? true));
+
+      // Charger les finalistes officiels
 
       // Charger les finalistes officiels
       const { data: resultats } = await supabase
@@ -89,6 +100,20 @@ function PodiumContent() {
   if (loading) return (
     <main className="min-h-screen bg-white flex items-center justify-center">
       <p className="text-gray-400 text-sm">Chargement...</p>
+    </main>
+  );
+
+  if (isPhase2Open === false) return (
+    <main className="min-h-screen bg-white flex items-center justify-center">
+      <div className="text-center px-6">
+        <p className="text-5xl mb-4">🔒</p>
+        <p className="text-lg font-semibold text-gray-900 mb-2">Phase 2 fermée</p>
+        <p className="text-sm text-gray-400 mb-6">Les votes pour le podium ne sont pas encore ouverts.</p>
+        <button onClick={() => router.push("/dashboard")}
+          className="bg-gray-900 text-white rounded-xl px-6 py-3 text-sm font-semibold">
+          ← Retour au dashboard
+        </button>
+      </div>
     </main>
   );
 

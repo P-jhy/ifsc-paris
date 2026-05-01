@@ -41,9 +41,9 @@ const [overrideNoteMap, setOverrideNoteMap] = useState<Map<string, string>>(new 
 
 
   useEffect(() => {
-    supabase.from("competition_status").select("open")
+    supabase.from("competition_status").select("open, phase1_open")
       .eq("competition_id", competition).single()
-      .then(({ data }) => setIsOpen(data?.open ?? false));
+      .then(({ data }) => setIsOpen((data?.open ?? false) && (data?.phase1_open ?? true)));
   }, [competition]);
 
   // Chargement des athlètes depuis Supabase
