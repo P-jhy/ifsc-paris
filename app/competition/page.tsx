@@ -276,12 +276,15 @@ const [overrideNoteMap, setOverrideNoteMap] = useState<Map<string, string>>(new 
   </div>
 )}
 
-        {selected.length === 8 && !saved && (
-          <button onClick={valider} disabled={loading}
-            className="w-full h-12 bg-gray-900 hover:bg-gray-700 text-white rounded-2xl font-semibold transition disabled:opacity-60">
-            {loading ? "Enregistrement..." : "Valider mes 8 finalistes →"}
-          </button>
-        )}
+{selected.length === 8 && !saved && (
+  <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t border-gray-100 z-50">
+    <button onClick={valider} disabled={loading}
+      className="w-full h-12 bg-gray-900 hover:bg-gray-700 text-white rounded-2xl font-semibold transition disabled:opacity-60">
+      {loading ? "Enregistrement..." : "Valider mes 8 finalistes →"}
+    </button>
+  </div>
+)}
+
 
         {saved && (
           <div className="w-full h-12 bg-green-50 border border-green-200 text-green-700 rounded-2xl font-semibold flex items-center justify-center">
