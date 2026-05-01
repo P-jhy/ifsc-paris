@@ -202,9 +202,9 @@ const [syncDemisStatus, setSyncDemisStatus] = useState<Record<string, string>>({
       p1ByUser[p.user_id].push(p.athlete_name);
     });
     const knownIds = new Set(freshProfiles?.map(p => p.id) || []);
-    const p1List = Object.entries(p1ByUser).map(([uid, picks]) => ({ username: getName(uid), picks })).filter(({ username }) => !username.match(/^[0-9a-f]{8}$/));
-    const p2List = (p2 || []).map(p => ({ username: getName(p.user_id), gold: p.gold_athlete, silver: p.silver_athlete, bronze: p.bronze_athlete })).filter(({ username }) => !username.match(/^[0-9a-f]{8}$/));
-    const chosenList = (chosenProps || []).map(p => ({ username: getName(p.user_id), athlete: p.athlete_name })).filter(({ username }) => !username.match(/^[0-9a-f]{8}$/));
+    const p1List = Object.entries(p1ByUser).map(([uid, picks]) => ({ username: getName(uid), picks }));
+    const p2List = (p2 || []).map(p => ({ username: getName(p.user_id), gold: p.gold_athlete, silver: p.silver_athlete, bronze: p.bronze_athlete }));
+    const chosenList = (chosenProps || []).map(p => ({ username: getName(p.user_id), athlete: p.athlete_name }));
   };
 
   const saveFinalistes = async () => {
