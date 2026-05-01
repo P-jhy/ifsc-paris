@@ -141,44 +141,47 @@ export default function Dashboard() {
       <div className="max-w-2xl mx-auto px-6 py-12">
 
         {/* Header */}
-        <div className="flex items-center justify-between mb-10">
-          <div className="flex items-center gap-4">
-            {avatarUrl ? (
-              <img src={avatarUrl} alt="avatar"
-                className="w-14 h-14 rounded-2xl object-cover border border-gray-100"/>
-            ) : (
-              <div className="w-14 h-14 rounded-2xl bg-gray-100 flex items-center justify-center text-2xl">🧗</div>
-            )}
-            <div>
-              <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-1">IFSC Boulder 2026</p>
-              <h1 className="text-2xl font-semibold text-gray-900">Bonjour {username} 👋</h1>
-            </div>
-          </div>
-          <div className="flex items-center gap-3">
-            <button onClick={() => router.push("/classement")}
-              className="text-sm font-medium text-gray-900 border border-gray-200 rounded-full px-4 py-2 hover:bg-gray-50 transition">
-              Classement
-            </button>
-            <button onClick={() => router.push("/chosen-one")}
-              className="text-sm font-medium text-gray-900 border border-gray-200 rounded-full px-4 py-2 hover:bg-gray-50 transition">
-              ⭐ Chosen One
-            </button>
-            <button onClick={() => router.push("/profil")}
-              className="text-sm font-medium text-gray-900 border border-gray-200 rounded-full px-4 py-2 hover:bg-gray-50 transition">
-              Mon profil
-            </button>
-            {isAdmin && (
-              <button onClick={() => router.push("/admin")}
-                className="text-sm font-medium text-gray-900 border border-gray-200 rounded-full px-4 py-2 hover:bg-gray-50 transition">
-                Admin
-              </button>
-            )}
-            <button onClick={signOut}
-              className="text-sm font-medium text-gray-400 hover:text-gray-900 transition">
-              Quitter
-            </button>
-          </div>
-        </div>
+<div className="mb-10">
+  {/* Ligne identité */}
+  <div className="flex items-center gap-3 mb-4">
+    {avatarUrl ? (
+      <img src={avatarUrl} alt="avatar"
+        className="w-12 h-12 rounded-2xl object-cover border border-gray-100 flex-shrink-0"/>
+    ) : (
+      <div className="w-12 h-12 rounded-2xl bg-gray-100 flex items-center justify-center text-2xl flex-shrink-0">🧗</div>
+    )}
+    <div className="min-w-0">
+      <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-0.5">IFSC Boulder 2026</p>
+      <h1 className="text-lg font-semibold text-gray-900 truncate">Bonjour {username} 👋</h1>
+    </div>
+  </div>
+
+  {/* Grille de boutons */}
+  <div className="grid grid-cols-2 gap-2">
+    <button onClick={() => router.push("/classement")}
+      className="text-sm font-medium text-gray-900 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 hover:bg-gray-100 transition text-center">
+      Classement
+    </button>
+    <button onClick={() => router.push("/chosen-one")}
+      className="text-sm font-medium text-gray-900 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 hover:bg-gray-100 transition text-center">
+      ⭐ Chosen One
+    </button>
+    <button onClick={() => router.push("/profil")}
+      className="text-sm font-medium text-gray-900 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 hover:bg-gray-100 transition text-center">
+      Mon profil
+    </button>
+    {isAdmin && (
+      <button onClick={() => router.push("/admin")}
+        className="text-sm font-medium text-gray-900 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 hover:bg-gray-100 transition text-center">
+        Admin
+      </button>
+    )}
+    <button onClick={signOut}
+      className={`text-sm font-medium text-gray-400 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 hover:bg-gray-100 transition text-center ${isAdmin ? "" : "col-span-1"}`}>
+      Quitter
+    </button>
+  </div>
+</div>
 
         {/* Compte à rebours prochaine étape */}
         {nextComp && (
