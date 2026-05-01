@@ -122,12 +122,13 @@ const [overrideNoteMap, setOverrideNoteMap] = useState<Map<string, string>>(new 
     if (!userId || selected.length !== 8) return;
     setLoading(true);
   
-    // Supprimer les anciens picks avant d'insérer les nouveaux
-    await supabase
+    const { error: deleteError, count } = await supabase
       .from("picks_phase1_temp")
-      .delete()
+      .delete({ count: 'exact' })
       .eq("user_id", userId)
       .eq("competition_id", `${competition}-${genre}`);
+  
+    console.log("DELETE result:", { deleteError, count, userId, competition_id: `${competition}-${genre}` });
   
     const rows = selected.map(name => ({
       user_id: userId,
@@ -135,13 +136,14 @@ const [overrideNoteMap, setOverrideNoteMap] = useState<Map<string, string>>(new 
       athlete_name: name,
     }));
   
-    await supabase.from("picks_phase1_temp").insert(rows);
+    const { error: insertError } = await supabase.from("picks_phase1_temp").insert(rows);
+    console.log("INSERT result:", { insertError });
   
     setSaved(true);
     setLoading(false);
     setTimeout(() => router.push("/dashboard"), 1500);
   };
-  
+
 
 
   const getPoints = (name: string, ranking: number): { pts: number; note: string | null; isOverride: boolean } => {
