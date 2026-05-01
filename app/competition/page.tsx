@@ -121,16 +121,27 @@ const [overrideNoteMap, setOverrideNoteMap] = useState<Map<string, string>>(new 
   const valider = async () => {
     if (!userId || selected.length !== 8) return;
     setLoading(true);
+  
+    // Supprimer les anciens picks avant d'insérer les nouveaux
+    await supabase
+      .from("picks_phase1_temp")
+      .delete()
+      .eq("user_id", userId)
+      .eq("competition_id", `${competition}-${genre}`);
+  
     const rows = selected.map(name => ({
       user_id: userId,
       competition_id: `${competition}-${genre}`,
       athlete_name: name,
     }));
-    await supabase.from("picks_phase1_temp").upsert(rows, { onConflict: "user_id,competition_id,athlete_name" });
+  
+    await supabase.from("picks_phase1_temp").insert(rows);
+  
     setSaved(true);
     setLoading(false);
     setTimeout(() => router.push("/dashboard"), 1500);
   };
+  
 
 
   const getPoints = (name: string, ranking: number): { pts: number; note: string | null; isOverride: boolean } => {
