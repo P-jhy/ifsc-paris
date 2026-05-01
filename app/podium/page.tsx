@@ -103,19 +103,7 @@ function PodiumContent() {
     </main>
   );
 
-  if (isPhase2Open === false) return (
-    <main className="min-h-screen bg-white flex items-center justify-center">
-      <div className="text-center px-6">
-        <p className="text-5xl mb-4">🔒</p>
-        <p className="text-lg font-semibold text-gray-900 mb-2">Phase 2 fermée</p>
-        <p className="text-sm text-gray-400 mb-6">Les votes pour le podium ne sont pas encore ouverts.</p>
-        <button onClick={() => router.push("/dashboard")}
-          className="bg-gray-900 text-white rounded-xl px-6 py-3 text-sm font-semibold">
-          ← Retour au dashboard
-        </button>
-      </div>
-    </main>
-  );
+  
 
   return (
     <main className="min-h-screen bg-white text-gray-900">
@@ -130,7 +118,13 @@ function PodiumContent() {
             {compName} 2026 · {genre === "hommes" ? "Hommes" : "Femmes"}
           </p>
           <h1 className="text-2xl font-semibold">Phase 2 — Ton podium</h1>
-          <p className="text-sm text-gray-400 mt-1">Clique dans l'ordre : 1er → 2ème → 3ème</p>
+          {isPhase2Open === false ? (
+            <div className="mt-2 inline-flex items-center gap-1.5 bg-red-50 border border-red-200 text-red-600 text-xs font-semibold rounded-full px-3 py-1">
+              🔒 Votes fermés — lecture seule
+            </div>
+          ) : (
+            <p className="text-sm text-gray-400 mt-1">Clique dans l'ordre : 1er → 2ème → 3ème</p>
+          )}
         </div>
 
         {finalistes.length === 0 ? (
@@ -154,10 +148,10 @@ function PodiumContent() {
             </div>
 
             <div className="divide-y divide-gray-100 border border-gray-100 rounded-2xl overflow-hidden mb-8">
-              {finalistes.map((name) => {
+            {finalistes.map((name) => {
                 const label = getLabel(name);
                 return (
-                  <button key={name} onClick={() => selectPodium(name)}
+                  <button key={name} onClick={() => isPhase2Open ? selectPodium(name) : null}
                     className={`w-full flex items-center justify-between px-5 py-4 transition text-left ${
                       label ? "bg-gray-900 text-white" : "bg-white hover:bg-gray-50 text-gray-900"
                     }`}>
@@ -168,7 +162,7 @@ function PodiumContent() {
               })}
             </div>
 
-            {gold && silver && bronze && (
+            {gold && silver && bronze && isPhase2Open && (
               <button onClick={valider}
                 className={`w-full h-11 rounded-xl font-semibold text-sm transition ${
                   saved

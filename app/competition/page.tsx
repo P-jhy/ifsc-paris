@@ -166,19 +166,7 @@ const [overrideNoteMap, setOverrideNoteMap] = useState<Map<string, string>>(new 
     </main>
   );
 
-  if (isOpen === false) return (
-    <main className="min-h-screen bg-white flex items-center justify-center">
-      <div className="text-center px-6">
-        <p className="text-5xl mb-4">🔒</p>
-        <p className="text-lg font-semibold text-gray-900 mb-2">Votes fermés</p>
-        <p className="text-sm text-gray-400 mb-6">Les votes pour cette étape ne sont pas encore ouverts.</p>
-        <button onClick={() => router.push("/dashboard")}
-          className="bg-gray-900 text-white rounded-xl px-6 py-3 text-sm font-semibold">
-          ← Retour au dashboard
-        </button>
-      </div>
-    </main>
-  );
+ 
 
   return (
     <main className="min-h-screen bg-white text-gray-900">
@@ -191,7 +179,13 @@ const [overrideNoteMap, setOverrideNoteMap] = useState<Map<string, string>>(new 
         <div className="mb-8">
           <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-1">{compName} 2026</p>
           <h1 className="text-2xl font-semibold text-gray-900">Phase 1 — Tes finalistes</h1>
-          <p className="text-sm text-gray-400 mt-1">{selected.length} / 8 sélectionnés</p>
+          {isOpen === false ? (
+            <div className="mt-2 inline-flex items-center gap-1.5 bg-red-50 border border-red-200 text-red-600 text-xs font-semibold rounded-full px-3 py-1">
+              🔒 Votes fermés — lecture seule
+            </div>
+          ) : (
+            <p className="text-sm text-gray-400 mt-1">{selected.length} / 8 sélectionnés</p>
+          )}
         </div>
 
         <div className="flex gap-2 mb-6">
@@ -221,7 +215,7 @@ const [overrideNoteMap, setOverrideNoteMap] = useState<Map<string, string>>(new 
     {filtered.map((athlete) => {
       const isSelected = selected.includes(athlete.name)
       return (
-        <button key={athlete.name} onClick={() => toggle(athlete.name)}
+        <button key={athlete.name} onClick={() => isOpen ? toggle(athlete.name) : null}
   className={`w-full flex items-center gap-4 px-4 py-3 transition text-left ${
             isSelected ? "bg-gray-900 text-white" : "bg-white hover:bg-gray-50 text-gray-900"
           }`}>
@@ -289,7 +283,7 @@ const [overrideNoteMap, setOverrideNoteMap] = useState<Map<string, string>>(new 
   </div>
 )}
 
-{selected.length === 8 && !saved && (
+{selected.length === 8 && !saved && isOpen && (
   <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t border-gray-100 z-50">
     <button onClick={valider} disabled={loading}
       className="w-full h-12 bg-gray-900 hover:bg-gray-700 text-white rounded-2xl font-semibold transition disabled:opacity-60">
