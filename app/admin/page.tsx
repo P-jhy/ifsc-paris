@@ -276,6 +276,19 @@ const [syncDemisStatus, setSyncDemisStatus] = useState<Record<string, string>>({
     setProfiles(profiles.map(p => p.id === userId ? { ...p, hidden: !hidden } : p));
   };
 
+  const deleteProfile = async (userId: string, username: string) => {
+    if (!confirm(`Supprimer définitivement "${username}" ?`)) return;
+    await supabase.from("picks_phase1_temp").delete().eq("user_id", userId);
+    await supabase.from("picks_phase2_temp").delete().eq("user_id", userId);
+    await supabase.from("scores").delete().eq("user_id", userId);
+    await supabase.from("chosen_one_proposals").delete().eq("user_id", userId);
+    await supabase.from("profiles").delete().eq("id", userId);
+    setProfiles(profiles.filter(p => p.id !== userId));
+    setMessage(`✓ Compte "${username}" supprimé.`);
+    setTimeout(() => setMessage(null), 3000);
+  };
+
+
   const toggleCompStatus = async (compId: string) => {
     const current = compStatuses[compId] ?? false;
     await supabase.from("competition_status").upsert({ competition_id: compId, open: !current }, { onConflict: "competition_id" });
@@ -685,6 +698,10 @@ const [syncDemisStatus, setSyncDemisStatus] = useState<Record<string, string>>({
                   <button onClick={() => toggleHidden(p.id, p.hidden)}
                     className={`text-xs font-semibold rounded-full px-3 py-1.5 transition ${p.hidden ? "bg-gray-100 text-gray-400 border border-gray-200" : "bg-red-50 text-red-600 border border-red-200 hover:bg-red-100"}`}>
                     {p.hidden ? "Afficher" : "Masquer"}
+                  </button>
+                  <button onClick={() => deleteProfile(p.id, p.username)}
+                    className="text-xs font-semibold rounded-full px-3 py-1.5 transition bg-red-600 text-white hover:bg-red-700">
+                    🗑
                   </button>
                 </div>
               ))}
