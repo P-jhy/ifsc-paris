@@ -45,7 +45,7 @@ const worldRankings: Record<string, number> = {
 }
 
 type Profile = { id: string; username: string; avatar_url: string | null; hidden: boolean };
-type Tab = "votes" | "resultats" | "joueurs" | "points" | "chosen";
+type Tab = "votes" | "resultats" | "joueurs" | "points" | "chosen" | "annonces";
 type ScoringRule = { id: string; label: string; points: number };
 type AthleteOverride = { id: string; competition_id: string; genre: string; athlete_name: string; point_override: number; note: string | null };
 type ChosenProp = { username: string; athlete: string };
@@ -143,6 +143,10 @@ export default function AdminPage() {
   const [syncingReg, setSyncingReg] = useState<string | null>(null)
   const [syncingDemis, setSyncingDemis] = useState<string | null>(null)
 const [syncDemisStatus, setSyncDemisStatus] = useState<Record<string, string>>({})
+const [annonces, setAnnonces] = useState<{ id: string; title: string; message: string; active: boolean }[]>([]);
+  const [newAnnTitle, setNewAnnTitle] = useState("");
+  const [newAnnMessage, setNewAnnMessage] = useState("");
+  const [annSaving, setAnnSaving] = useState(false);
 
 
 
@@ -176,6 +180,11 @@ const [syncDemisStatus, setSyncDemisStatus] = useState<Record<string, string>>({
     if (loading || tab !== "points") return;
     loadOverrides();
   }, [loading, tab, selectedComp, selectedGenre]);
+
+  useEffect(() => {
+    if (loading || tab !== "annonces") return;
+    loadAnnonces();
+  }, [loading, tab]);
 
   const loadResultats = async () => {
     const { data } = await supabase.from("resultats_officiels").select("*")
@@ -346,6 +355,34 @@ const [syncDemisStatus, setSyncDemisStatus] = useState<Record<string, string>>({
     setTimeout(() => setMessage(null), 3000);
   };
 
+  const loadAnnonces = async () => {
+    const { data } = await supabase.from("announcements").select("id, title, message, active").order("created_at", { ascending: false });
+    setAnnonces(data || []);
+  };
+
+  const saveAnnonce = async () => {
+    if (!newAnnTitle.trim() || !newAnnMessage.trim()) return;
+    setAnnSaving(true);
+    await supabase.from("announcements").insert({ title: newAnnTitle.trim(), message: newAnnMessage.trim(), active: true });
+    setNewAnnTitle(""); setNewAnnMessage("");
+    await loadAnnonces();
+    setAnnSaving(false);
+    setMessage("✓ Annonce publiée !");
+    setTimeout(() => setMessage(null), 3000);
+  };
+
+  const toggleAnnonce = async (id: string, active: boolean) => {
+    await supabase.from("announcements").update({ active: !active }).eq("id", id);
+    setAnnonces(annonces.map(a => a.id === id ? { ...a, active: !active } : a));
+  };
+
+  const deleteAnnonce = async (id: string) => {
+    await supabase.from("announcements").delete().eq("id", id);
+    setAnnonces(annonces.filter(a => a.id !== id));
+    setMessage("✓ Annonce supprimée !");
+    setTimeout(() => setMessage(null), 3000);
+  };
+
   const syncFromIFSC = async (competitionId: string, genre: 'hommes' | 'femmes', mode: 'semis' | 'finale') => {
     const key = `${competitionId}-${genre}-${mode}`
     setSyncing(key)
@@ -438,6 +475,7 @@ const [syncDemisStatus, setSyncDemisStatus] = useState<Record<string, string>>({
     { id: "joueurs", label: "Joueurs" },
     { id: "points", label: "Points" },
     { id: "chosen", label: "⭐ Chosen One" },
+    { id: "annonces", label: "📣 Annonces" },
   ];
 
   return (
@@ -899,6 +937,52 @@ const [syncDemisStatus, setSyncDemisStatus] = useState<Record<string, string>>({
                   Calculer les points
                 </button>
               </div>
+            </div>
+          </div>
+        )}
+
+{tab === "annonces" && (
+          <div className="space-y-6">
+            <div className="border border-gray-100 rounded-2xl p-5">
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4">Nouvelle annonce</p>
+              <div className="grid gap-3">
+                <input type="text" value={newAnnTitle} onChange={e => setNewAnnTitle(e.target.value)}
+                  placeholder="Titre (ex: Votes ouverts pour Berne !)"
+                  className="w-full h-10 rounded-xl border border-gray-200 px-3 text-sm outline-none focus:border-gray-400 transition"/>
+                <textarea value={newAnnMessage} onChange={e => setNewAnnMessage(e.target.value)}
+                  placeholder="Message..."
+                  rows={3}
+                  className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:border-gray-400 transition resize-none"/>
+                <button onClick={saveAnnonce} disabled={annSaving}
+                  className="h-11 bg-gray-900 hover:bg-gray-700 text-white rounded-xl text-sm font-semibold transition disabled:opacity-60">
+                  {annSaving ? "Publication..." : "📣 Publier l'annonce"}
+                </button>
+              </div>
+            </div>
+            <div className="border border-gray-100 rounded-2xl overflow-hidden">
+              <div className="px-5 py-3 bg-gray-50 border-b border-gray-100">
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Annonces existantes</p>
+              </div>
+              {annonces.length === 0 ? (
+                <p className="text-sm text-gray-400 p-5">Aucune annonce.</p>
+              ) : annonces.map(a => (
+                <div key={a.id} className="px-5 py-4 border-b border-gray-50 last:border-0">
+                  <div className="flex items-start justify-between gap-3 mb-1">
+                    <p className="text-sm font-semibold text-gray-900">{a.title}</p>
+                    <div className="flex gap-2 flex-shrink-0">
+                      <button onClick={() => toggleAnnonce(a.id, a.active)}
+                        className={`text-xs font-semibold rounded-full px-3 py-1 transition ${a.active ? "bg-green-50 text-green-700 border border-green-200" : "bg-gray-100 text-gray-400 border border-gray-200"}`}>
+                        {a.active ? "✓ Active" : "Inactive"}
+                      </button>
+                      <button onClick={() => deleteAnnonce(a.id)}
+                        className="text-xs font-semibold rounded-full px-3 py-1 bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 transition">
+                        🗑
+                      </button>
+                    </div>
+                  </div>
+                  <p className="text-xs text-gray-400">{a.message}</p>
+                </div>
+              ))}
             </div>
           </div>
         )}
