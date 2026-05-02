@@ -237,7 +237,9 @@ const [syncDemisStatus, setSyncDemisStatus] = useState<Record<string, string>>({
       const overrideMap = new Map<string, number>();
       overrideRows?.forEach((o: { athlete_name: string; point_override: number }) => overrideMap.set(o.athlete_name, Number(o.point_override) || 0));      const { data: allPicks1 } = await supabase.from("picks_phase1_temp").select("user_id, athlete_name").eq("competition_id", competitionGenreId);
       const { data: allPicks2 } = await supabase.from("picks_phase2_temp").select("user_id, gold_athlete, silver_athlete, bronze_athlete").eq("competition_id", competitionGenreId);
-      const userIds = [...new Set([...(allPicks1?.map(p => p.user_id) || []), ...(allPicks2?.map(p => p.user_id) || [])])];
+      const { data: activeProfiles } = await supabase.from("profiles").select("id");
+      const activeIds = new Set(activeProfiles?.map(p => p.id) || []);
+      const userIds = [...new Set([...(allPicks1?.map(p => p.user_id) || []), ...(allPicks2?.map(p => p.user_id) || [])])].filter(id => activeIds.has(id));
       for (const userId of userIds) {
         const userPicks1 = allPicks1?.filter(p => p.user_id === userId).map(p => p.athlete_name) || [];
         const userPick2 = allPicks2?.find(p => p.user_id === userId);
@@ -283,9 +285,9 @@ const [syncDemisStatus, setSyncDemisStatus] = useState<Record<string, string>>({
     await supabase.from("picks_phase1_temp").delete().eq("user_id", userId);
     await supabase.from("picks_phase2_temp").delete().eq("user_id", userId);
     await supabase.from("scores").delete().eq("user_id", userId);
+    await supabase.from("chosen_one_picks").delete().eq("user_id", userId);
     await supabase.from("chosen_one_proposals").delete().eq("user_id", userId);
     await supabase.from("profiles").delete().eq("id", userId);
-    setProfiles(profiles.filter(p => p.id !== userId));
     setMessage(`✓ Compte "${username}" supprimé.`);
     setTimeout(() => setMessage(null), 3000);
   };
