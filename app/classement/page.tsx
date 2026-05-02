@@ -45,6 +45,7 @@ export default function ClassementPage() {
 
       const profileMap: Record<string, { username: string; avatar_url: string | null }> = {};
       profiles?.forEach(p => { profileMap[p.id] = { username: p.username, avatar_url: p.avatar_url }; });
+      const activeIds = new Set(profiles?.map(p => p.id) || []);
 
       // Historique précédent par user (avant le snapshot le plus récent)
       const previousTotals: Record<string, number> = {};
@@ -60,7 +61,7 @@ export default function ClassementPage() {
         }
       }
 
-      const userIds = [...new Set(scores.map(s => s.user_id))];
+      const userIds = [...new Set(scores.map(s => s.user_id))].filter(id => activeIds.has(id));
       const playerMap: Record<string, PlayerScore> = {};
 
       for (const userId of userIds) {
