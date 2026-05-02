@@ -27,10 +27,11 @@ function PodiumContent() {
       // Vérifier si phase 2 est ouverte
       const { data: status } = await supabase
         .from("competition_status")
-        .select("open, phase2_open")
+        .select("open, phase2_open_hommes, phase2_open_femmes")
         .eq("competition_id", competition)
         .single();
-      setIsPhase2Open((status?.open ?? false) && (status?.phase2_open ?? true));
+      const genreField = genre === "hommes" ? "phase2_open_hommes" : "phase2_open_femmes";
+      setIsPhase2Open((status?.open ?? false) && (status?.[genreField] ?? true));
 
       // Charger les finalistes officiels
 

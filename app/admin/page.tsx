@@ -127,7 +127,7 @@ export default function AdminPage() {
     p2: { username: string; gold: string; silver: string; bronze: string }[]
     chosen: ChosenProp[] 
   }>({ p1: [], p2: [], chosen: [] });  const [profiles, setProfiles] = useState<Profile[]>([]);
-  const [compStatuses, setCompStatuses] = useState<Record<string, { open: boolean; phase1_open: boolean; phase2_open: boolean }>>({});
+  const [compStatuses, setCompStatuses] = useState<Record<string, { open: boolean; phase1_open_hommes: boolean; phase1_open_femmes: boolean; phase2_open_hommes: boolean; phase2_open_femmes: boolean }>>({});
   const [scoringRules, setScoringRules] = useState<ScoringRule[]>(defaultScoringRules);
   const [rulesLoading, setRulesLoading] = useState(false);
   const [rulesSaving, setRulesSaving] = useState(false);
@@ -153,9 +153,9 @@ const [syncDemisStatus, setSyncDemisStatus] = useState<Record<string, string>>({
       if (!profile?.is_admin) { router.push("/dashboard"); return; }
       const { data: profs } = await supabase.from("profiles").select("id, username, avatar_url, hidden");
       setProfiles(profs || []);
-      const { data: statuses } = await supabase.from("competition_status").select("competition_id, open, phase1_open, phase2_open");
-      const statusMap: Record<string, { open: boolean; phase1_open: boolean; phase2_open: boolean }> = {};
-      statuses?.forEach(s => { statusMap[s.competition_id] = { open: s.open ?? false, phase1_open: s.phase1_open ?? true, phase2_open: s.phase2_open ?? true }; });
+      const { data: statuses } = await supabase.from("competition_status").select("competition_id, open, phase1_open_hommes, phase1_open_femmes, phase2_open_hommes, phase2_open_femmes");
+      const statusMap: Record<string, { open: boolean; phase1_open_hommes: boolean; phase1_open_femmes: boolean; phase2_open_hommes: boolean; phase2_open_femmes: boolean }> = {};
+      statuses?.forEach(s => { statusMap[s.competition_id] = { open: s.open ?? false, phase1_open_hommes: s.phase1_open_hommes ?? true, phase1_open_femmes: s.phase1_open_femmes ?? true, phase2_open_hommes: s.phase2_open_hommes ?? true, phase2_open_femmes: s.phase2_open_femmes ?? true }; });
       setCompStatuses(statusMap);
       setLoading(false);
     });
@@ -293,8 +293,8 @@ const [syncDemisStatus, setSyncDemisStatus] = useState<Record<string, string>>({
   };
 
 
-  const toggleCompStatus = async (compId: string, field: "open" | "phase1_open" | "phase2_open") => {
-    const current = compStatuses[compId] ?? { open: false, phase1_open: true, phase2_open: true };
+  const toggleCompStatus = async (compId: string, field: "open" | "phase1_open_hommes" | "phase1_open_femmes" | "phase2_open_hommes" | "phase2_open_femmes") => {
+    const current = compStatuses[compId] ?? { open: false, phase1_open_hommes: true, phase1_open_femmes: true, phase2_open_hommes: true, phase2_open_femmes: true };
     const next = { ...current, [field]: !current[field] };
     await supabase.from("competition_status").upsert({ competition_id: compId, ...next }, { onConflict: "competition_id" });
     setCompStatuses({ ...compStatuses, [compId]: next });
@@ -680,24 +680,32 @@ const [syncDemisStatus, setSyncDemisStatus] = useState<Record<string, string>>({
               <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4">Ouverture des votes par étape</p>
               <div className="divide-y divide-gray-100 border border-gray-100 rounded-2xl overflow-hidden">
                 {competitions.map(c => {
-                  const s = compStatuses[c.id] ?? { open: false, phase1_open: true, phase2_open: true };
+                  const s = compStatuses[c.id] ?? { open: false, phase1_open_hommes: true, phase1_open_femmes: true, phase2_open_hommes: true, phase2_open_femmes: true };
                   return (
                     <div key={c.id} className="px-5 py-4">
-                      <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center justify-between mb-3">
                         <span className="text-sm font-medium text-gray-900">{c.flag} {c.name}</span>
                         <button onClick={() => toggleCompStatus(c.id, "open")}
                           className={`text-xs font-semibold rounded-full px-3 py-1 transition ${s.open ? "bg-green-50 text-green-700 border border-green-200" : "bg-gray-100 text-gray-500 border border-gray-200"}`}>
                           {s.open ? "✓ Étape ouverte" : "Étape fermée"}
                         </button>
                       </div>
-                      <div className="flex gap-2">
-                        <button onClick={() => toggleCompStatus(c.id, "phase1_open")}
-                          className={`text-xs font-semibold rounded-full px-3 py-1 transition ${s.phase1_open ? "bg-blue-50 text-blue-700 border border-blue-200" : "bg-gray-100 text-gray-400 border border-gray-200"}`}>
-                          {s.phase1_open ? "✓ Phase 1 ouverte" : "Phase 1 fermée"}
+                      <div className="grid grid-cols-2 gap-2">
+                        <button onClick={() => toggleCompStatus(c.id, "phase1_open_hommes")}
+                          className={`text-xs font-semibold rounded-full px-3 py-1 transition ${s.phase1_open_hommes ? "bg-blue-50 text-blue-700 border border-blue-200" : "bg-gray-100 text-gray-400 border border-gray-200"}`}>
+                          {s.phase1_open_hommes ? "✓ P1 Hommes" : "🔒 P1 Hommes"}
                         </button>
-                        <button onClick={() => toggleCompStatus(c.id, "phase2_open")}
-                          className={`text-xs font-semibold rounded-full px-3 py-1 transition ${s.phase2_open ? "bg-purple-50 text-purple-700 border border-purple-200" : "bg-gray-100 text-gray-400 border border-gray-200"}`}>
-                          {s.phase2_open ? "✓ Phase 2 ouverte" : "Phase 2 fermée"}
+                        <button onClick={() => toggleCompStatus(c.id, "phase1_open_femmes")}
+                          className={`text-xs font-semibold rounded-full px-3 py-1 transition ${s.phase1_open_femmes ? "bg-pink-50 text-pink-700 border border-pink-200" : "bg-gray-100 text-gray-400 border border-gray-200"}`}>
+                          {s.phase1_open_femmes ? "✓ P1 Femmes" : "🔒 P1 Femmes"}
+                        </button>
+                        <button onClick={() => toggleCompStatus(c.id, "phase2_open_hommes")}
+                          className={`text-xs font-semibold rounded-full px-3 py-1 transition ${s.phase2_open_hommes ? "bg-purple-50 text-purple-700 border border-purple-200" : "bg-gray-100 text-gray-400 border border-gray-200"}`}>
+                          {s.phase2_open_hommes ? "✓ P2 Hommes" : "🔒 P2 Hommes"}
+                        </button>
+                        <button onClick={() => toggleCompStatus(c.id, "phase2_open_femmes")}
+                          className={`text-xs font-semibold rounded-full px-3 py-1 transition ${s.phase2_open_femmes ? "bg-orange-50 text-orange-700 border border-orange-200" : "bg-gray-100 text-gray-400 border border-gray-200"}`}>
+                          {s.phase2_open_femmes ? "✓ P2 Femmes" : "🔒 P2 Femmes"}
                         </button>
                       </div>
                     </div>
