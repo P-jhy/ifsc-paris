@@ -32,9 +32,10 @@ export default function ClassementPage() {
         .from("scores")
         .select("user_id, competition_id, genre, total_points");
 
-      const { data: profiles } = await supabase
+        const { data: profiles } = await supabase
         .from("profiles")
-        .select("id, username, avatar_url");
+        .select("id, username, avatar_url, hidden")
+        .eq("hidden", false);
 
       const { data: history } = await supabase
         .from("scores_history")
