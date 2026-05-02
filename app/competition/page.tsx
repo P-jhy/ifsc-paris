@@ -40,11 +40,14 @@ const [overrideMap, setOverrideMap] = useState<Map<string, number>>(new Map())
 const [overrideNoteMap, setOverrideNoteMap] = useState<Map<string, string>>(new Map())
 
 
-  useEffect(() => {
-    supabase.from("competition_status").select("open, phase1_open")
-      .eq("competition_id", competition).single()
-      .then(({ data }) => setIsOpen((data?.open ?? false) && (data?.phase1_open ?? true)));
-  }, [competition]);
+useEffect(() => {
+  supabase.from("competition_status").select("open, phase1_open_hommes, phase1_open_femmes")
+    .eq("competition_id", competition).single()
+    .then(({ data }) => {
+      const genreField = genre === "hommes" ? "phase1_open_hommes" : "phase1_open_femmes";
+      setIsOpen((data?.open ?? false) && (data?.[genreField] ?? true));
+    });
+}, [competition, genre]);
 
   // Chargement des athlètes depuis Supabase
   useEffect(() => {
