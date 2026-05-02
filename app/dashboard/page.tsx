@@ -91,6 +91,8 @@ export default function Dashboard() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [hasPicked, setHasPicked] = useState<Record<string, boolean>>({});
   const [hasPickedP2, setHasPickedP2] = useState<Record<string, boolean>>({});
+  const [announcements, setAnnouncements] = useState<{ id: string; title: string; message: string }[]>([]);
+  const [showAnnouncement, setShowAnnouncement] = useState(false);
 
   const nextComp = competitions.find(c => c.date > new Date());
 
@@ -104,7 +106,6 @@ export default function Dashboard() {
         .select("username, is_admin, avatar_url")
         .eq("id", userId)
         .single();
-
       setUsername(profile?.username || data.session.user.email || "");
       setAvatarUrl(profile?.avatar_url || null);
       setIsAdmin(profile?.is_admin || false);
@@ -113,7 +114,6 @@ export default function Dashboard() {
         .from("picks_phase1_temp")
         .select("competition_id")
         .eq("user_id", userId);
-
       const { data: picks2 } = await supabase
         .from("picks_phase2_temp")
         .select("competition_id")
@@ -126,6 +126,19 @@ export default function Dashboard() {
       const picked2: Record<string, boolean> = {};
       picks2?.forEach(p => { picked2[p.competition_id] = true; });
       setHasPickedP2(picked2);
+
+      const { data: ann } = await supabase
+        .from("announcements")
+        .select("id, title, message")
+        .eq("active", true)
+        .order("created_at", { ascending: false });
+        if (ann && ann.length > 0) {
+          setAnnouncements(ann);
+          const seen = localStorage.getItem("seen_announcements") || "";
+          const seenIds = seen.split(",");
+          const hasNew = ann.some((a: { id: string }) => !seenIds.includes(a.id));
+          if (hasNew) setShowAnnouncement(true);
+        }
     });
   }, [router]);
 
@@ -139,6 +152,37 @@ export default function Dashboard() {
   return (
     <main className="min-h-screen bg-white text-gray-900">
       <div className="max-w-2xl mx-auto px-6 py-12">
+
+        {/* Modale annonces */}
+        {showAnnouncement && announcements.length > 0 && (
+          <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center px-4">
+            <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-xl">
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-4">📣 Annonce</p>
+              {announcements.map((a, i) => (
+                <div key={a.id} className={i > 0 ? "mt-4 pt-4 border-t border-gray-100" : ""}>
+                  <p className="font-semibold text-gray-900 mb-1">{a.title}</p>
+                  <p className="text-sm text-gray-500">{a.message}</p>
+                </div>
+              ))}
+              <div className="mt-6 flex gap-2">
+                <button
+                  onClick={() => setShowAnnouncement(false)}
+                  className="flex-1 h-11 bg-gray-900 hover:bg-gray-700 text-white rounded-xl text-sm font-semibold transition">
+                  OK, j'ai compris
+                </button>
+                <button
+                  onClick={() => {
+                    const seen = announcements.map(a => a.id).join(",");
+                    localStorage.setItem("seen_announcements", seen);
+                    setShowAnnouncement(false);
+                  }}
+                  className="flex-1 h-11 border border-gray-200 text-gray-400 hover:bg-gray-50 rounded-xl text-sm font-medium transition">
+                  Ne plus afficher
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Header */}
 <div className="mb-10">
