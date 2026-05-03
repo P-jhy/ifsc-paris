@@ -173,9 +173,13 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'Aucun résultat disponible' }, { status: 400 })
       }
 
-      const top8 = data.ranking.sort((a, b) => a.rank - b.rank).slice(0, 8)
+      const validRanking = data.ranking.filter(e => {
+        const score = String(e.score || "").toUpperCase();
+        return !["DNS", "DNF", "DQ", ""].includes(score) && e.rank > 0;
+      });
+      const top8 = validRanking.sort((a, b) => a.rank - b.rank).slice(0, 8);
       if (top8.length < 8) {
-        return NextResponse.json({ error: `Seulement ${top8.length} finalistes trouvés` }, { status: 400 })
+        return NextResponse.json({ error: `Seulement ${top8.length} finalistes valides trouvés` }, { status: 400 })
       }
 
       const formatName = (e: IFSCRankingEntry) => `${e.firstname} ${e.lastname}`
