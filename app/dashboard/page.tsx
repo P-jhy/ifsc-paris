@@ -93,6 +93,8 @@ export default function Dashboard() {
   const [hasPickedP2, setHasPickedP2] = useState<Record<string, boolean>>({});
   const [announcements, setAnnouncements] = useState<{ id: string; title: string; message: string }[]>([]);
   const [showAnnouncement, setShowAnnouncement] = useState(false);
+  const [myRank, setMyRank] = useState<number | null>(null);
+  const [myTotal, setMyTotal] = useState<number | null>(null);
 
   const nextComp = competitions.find(c => c.date > new Date());
 
@@ -126,6 +128,25 @@ export default function Dashboard() {
       const picked2: Record<string, boolean> = {};
       picks2?.forEach(p => { picked2[p.competition_id] = true; });
       setHasPickedP2(picked2);
+
+      // Charger rang et score
+      const { data: allScores } = await supabase
+        .from("scores")
+        .select("user_id, total_points");
+      const { data: activeProfs } = await supabase
+        .from("profiles")
+        .select("id")
+        .eq("hidden", false);
+      const activeIds = new Set(activeProfs?.map(p => p.id) || []);
+      const totals: Record<string, number> = {};
+      allScores?.forEach(s => {
+        if (!activeIds.has(s.user_id)) return;
+        totals[s.user_id] = (totals[s.user_id] || 0) + s.total_points;
+      });
+      const sorted = Object.entries(totals).sort((a, b) => b[1] - a[1]);
+      const myIdx = sorted.findIndex(([id]) => id === userId);
+      setMyTotal(totals[userId] || 0);
+      setMyRank(myIdx >= 0 ? myIdx + 1 : null);
 
       const { data: ann } = await supabase
         .from("announcements")
@@ -195,9 +216,16 @@ export default function Dashboard() {
       <div className="w-12 h-12 rounded-2xl bg-gray-100 flex items-center justify-center text-2xl flex-shrink-0">🧗</div>
     )}
     <div className="min-w-0">
-      <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-0.5">IFSC Boulder 2026</p>
-      <h1 className="text-lg font-semibold text-gray-900 truncate">Bonjour {username} 👋</h1>
-    </div>
+    <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-0.5">IFSC Boulder 2026</p>
+    <h1 className="text-lg font-semibold text-gray-900 truncate">Bonjour {username} 👋</h1>
+    {myRank !== null && myTotal !== null && (
+      <div className="flex items-center gap-2 mt-1">
+        <span className="text-xs font-semibold text-gray-500">#{myRank}</span>
+        <span className="text-xs text-gray-300">·</span>
+        <span className="text-xs font-semibold text-gray-500">{myTotal} pts</span>
+      </div>
+    )}
+  </div>
   </div>
 
   {/* Grille de boutons */}

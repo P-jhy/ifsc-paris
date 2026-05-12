@@ -187,7 +187,12 @@ export default function ClassementPage() {
                   ) : (
                     <p className="text-2xl mb-1">{medals[idx]}</p>
                   )}
-                  <p className="font-semibold text-sm text-gray-900 truncate">{j.username}</p>
+                  <p className="font-semibold text-sm text-gray-900 truncate">
+                    {j.username}
+                    {bestPerf && j.username === bestPerf.username && lastDisputedIdx >= 0 && (
+                      <span className="ml-1">🔥</span>
+                    )}
+                  </p>
                   {j.user_id === currentUserId && (
                     <p className="text-xs text-blue-400 font-medium">Toi</p>
                   )}
@@ -236,7 +241,11 @@ export default function ClassementPage() {
                       <div className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center text-sm flex-shrink-0">🧗</div>
                     )}
                     <span className={`flex-1 text-sm font-semibold ${isMe ? "text-blue-700" : "text-gray-900"}`}>
-                      {j.username} {isMe && <span className="text-xs font-normal text-blue-400">(toi)</span>}
+                      {j.username}
+                      {isMe && <span className="text-xs font-normal text-blue-400"> (toi)</span>}
+                      {bestPerf && j.username === bestPerf.username && lastDisputedIdx >= 0 && (
+                        <span className="ml-1 text-xs">🔥</span>
+                      )}
                     </span>
                     {evo && (
                       <span className={`text-xs font-semibold ${evo.color}`}>
