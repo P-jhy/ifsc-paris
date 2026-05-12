@@ -16,6 +16,8 @@ function PodiumContent() {
   const [loading, setLoading] = useState(true);
   const [isPhase2Open, setIsPhase2Open] = useState<boolean | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
+  const [athleteInfos, setAthleteInfos] = useState<Record<string, { photo_url: string | null; ranking: number }>>({});
+
 
   const compName = competition.split("-")[0].charAt(0).toUpperCase() + competition.split("-")[0].slice(1);
 
@@ -48,8 +50,20 @@ function PodiumContent() {
           resultats.rank1, resultats.rank2, resultats.rank3, resultats.rank4,
           resultats.rank5, resultats.rank6, resultats.rank7, resultats.rank8
         ].filter(Boolean);
-        setFinalistes(liste);
-      }
+setFinalistes(liste);
+
+        // Charger les photos et rankings des finalistes
+        const { data: athletesData } = await supabase
+          .from("athletes")
+          .select("name, photo_url, world_ranking, override_ranking")
+          .eq("competition_id", competition)
+          .eq("genre", genre)
+          .in("name", liste);
+        const infos: Record<string, { photo_url: string | null; ranking: number }> = {};
+        athletesData?.forEach(a => {
+          infos[a.name] = { photo_url: a.photo_url, ranking: a.override_ranking ?? a.world_ranking };
+        });
+        setAthleteInfos(infos);      }
 
       // Charger les pronos existants du joueur
       const { data: existingPick } = await supabase
@@ -149,15 +163,30 @@ function PodiumContent() {
             </div>
 
             <div className="divide-y divide-gray-100 border border-gray-100 rounded-2xl overflow-hidden mb-8">
-            {finalistes.map((name) => {
+              {finalistes.map((name) => {
                 const label = getLabel(name);
+                const info = athleteInfos[name];
+                const ranking = info?.ranking ?? 999;
+                const rankColor = ranking <= 10 ? "text-amber-500" : ranking <= 25 ? "text-blue-500" : ranking <= 50 ? "text-green-500" : "text-gray-400";
                 return (
                   <button key={name} onClick={() => isPhase2Open ? selectPodium(name) : null}
-                    className={`w-full flex items-center justify-between px-5 py-4 transition text-left ${
+                    className={`w-full flex items-center gap-4 px-4 py-3 transition text-left ${
                       label ? "bg-gray-900 text-white" : "bg-white hover:bg-gray-50 text-gray-900"
                     }`}>
-                    <span className="font-medium text-sm">{name}</span>
-                    {label && <span className="text-xl">{label}</span>}
+                    <div className="w-14 h-14 rounded-full overflow-hidden flex-shrink-0 bg-gray-100">
+                      {info?.photo_url ? (
+                        <img src={info.photo_url} alt={name} className="w-full h-full object-cover object-top"/>
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-xl">🧗</div>
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold text-sm truncate">{name}</p>
+                      <p className={`text-xs mt-0.5 ${label ? "text-gray-400" : rankColor}`}>
+                        World {ranking === 999 ? "NC" : `#${ranking}`}
+                      </p>
+                    </div>
+                    {label && <span className="text-2xl flex-shrink-0">{label}</span>}
                   </button>
                 );
               })}
