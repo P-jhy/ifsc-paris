@@ -223,6 +223,21 @@ export default function ClassementPage() {
               ))}
             </div>
 
+            {selectedEtape !== "all" && (
+              <div className="flex gap-2 mb-6">
+                <button
+                  onClick={() => router.push(`/mur-pronos?competition=${selectedEtape}&genre=hommes`)}
+                  className="text-xs font-medium rounded-full px-4 py-1.5 bg-gray-900 text-white hover:bg-gray-700 transition">
+                  🃏 Mur des pronos — Hommes
+                </button>
+                <button
+                  onClick={() => router.push(`/mur-pronos?competition=${selectedEtape}&genre=femmes`)}
+                  className="text-xs font-medium rounded-full px-4 py-1.5 border border-gray-200 text-gray-600 hover:bg-gray-50 transition">
+                  🃏 Mur des pronos — Femmes
+                </button>
+              </div>
+            )}
+
             {/* Tableau complet */}
             <div className="border border-gray-100 rounded-2xl overflow-hidden mb-8">
               {filteredClassement.map((j, idx) => {

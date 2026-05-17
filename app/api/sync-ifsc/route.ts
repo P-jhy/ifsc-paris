@@ -177,25 +177,40 @@ export async function POST(req: NextRequest) {
         const score = String(e.score || "").toUpperCase();
         return !["DNS", "DNF", "DQ", ""].includes(score) && e.rank > 0;
       });
-      const top8 = validRanking.sort((a, b) => a.rank - b.rank).slice(0, 8);
-      if (top8.length < 8) {
-        return NextResponse.json({ error: `Seulement ${top8.length} finalistes valides trouvés` }, { status: 400 })
-      }
+      const sorted = validRanking.sort((a, b) => a.rank - b.rank);
+const top8 = sorted.slice(0, 8);
+const top20 = sorted.slice(0, 20);
 
-      const formatName = (e: IFSCRankingEntry) => `${e.firstname} ${e.lastname}`
+if (top8.length < 8) {
+  return NextResponse.json({ error: `Seulement ${top8.length} finalistes valides trouvés` }, { status: 400 })
+}
 
-      const payload: Record<string, string> = {
-        competition_id: competitionId,
-        genre,
-        rank1: formatName(top8[0]),
-        rank2: formatName(top8[1]),
-        rank3: formatName(top8[2]),
-        rank4: formatName(top8[3]),
-        rank5: formatName(top8[4]),
-        rank6: formatName(top8[5]),
-        rank7: formatName(top8[6]),
-        rank8: formatName(top8[7]),
-      }
+const formatName = (e: IFSCRankingEntry) => `${e.firstname} ${e.lastname}`
+
+const payload: Record<string, string> = {
+  competition_id: competitionId,
+  genre,
+  rank1: formatName(top8[0]),
+  rank2: formatName(top8[1]),
+  rank3: formatName(top8[2]),
+  rank4: formatName(top8[3]),
+  rank5: formatName(top8[4]),
+  rank6: formatName(top8[5]),
+  rank7: formatName(top8[6]),
+  rank8: formatName(top8[7]),
+  rank9:  top20[8]  ? formatName(top20[8])  : "",
+  rank10: top20[9]  ? formatName(top20[9])  : "",
+  rank11: top20[10] ? formatName(top20[10]) : "",
+  rank12: top20[11] ? formatName(top20[11]) : "",
+  rank13: top20[12] ? formatName(top20[12]) : "",
+  rank14: top20[13] ? formatName(top20[13]) : "",
+  rank15: top20[14] ? formatName(top20[14]) : "",
+  rank16: top20[15] ? formatName(top20[15]) : "",
+  rank17: top20[16] ? formatName(top20[16]) : "",
+  rank18: top20[17] ? formatName(top20[17]) : "",
+  rank19: top20[18] ? formatName(top20[18]) : "",
+  rank20: top20[19] ? formatName(top20[19]) : "",
+}
 
       if (mode === 'finale') {
         payload.podium_gold   = formatName(top8[0])

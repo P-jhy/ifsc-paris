@@ -38,6 +38,9 @@ export default function ChatPage() {
       if (!data.session) { router.push("/login"); return; }
       setUserId(data.session.user.id);
 
+     
+      // Charger les finalistes officiels
+
       const { data: profile } = await supabase
         .from("profiles")
         .select("username, avatar_url")
@@ -169,6 +172,7 @@ export default function ChatPage() {
     </main>
   );
 
+  
   // Grouper les messages par date
   const groupedMessages: { date: string; msgs: Message[] }[] = [];
   messages.forEach(m => {

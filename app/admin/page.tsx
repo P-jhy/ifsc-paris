@@ -117,7 +117,7 @@ export default function AdminPage() {
   const [tab, setTab] = useState<Tab>("votes");
   const [selectedComp, setSelectedComp] = useState("keqiao-2026");
   const [selectedGenre, setSelectedGenre] = useState("hommes");
-  const [finalistes, setFinalistes] = useState(["","","","","","","",""]);
+  const [finalistes, setFinalistes] = useState(Array(20).fill(""));
   const [podium, setPodium] = useState({ gold: "", silver: "", bronze: "" });
   const [saving, setSaving] = useState(false);
   const [calculating, setCalculating] = useState(false);
@@ -190,7 +190,13 @@ const [annonces, setAnnonces] = useState<{ id: string; title: string; message: s
     const { data } = await supabase.from("resultats_officiels").select("*")
       .eq("competition_id", selectedComp).eq("genre", selectedGenre).single();
     if (data) {
-      setFinalistes([data.rank1||"",data.rank2||"",data.rank3||"",data.rank4||"",data.rank5||"",data.rank6||"",data.rank7||"",data.rank8||""]);
+      setFinalistes([
+        data.rank1||"",data.rank2||"",data.rank3||"",data.rank4||"",
+        data.rank5||"",data.rank6||"",data.rank7||"",data.rank8||"",
+        data.rank9||"",data.rank10||"",data.rank11||"",data.rank12||"",
+        data.rank13||"",data.rank14||"",data.rank15||"",data.rank16||"",
+        data.rank17||"",data.rank18||"",data.rank19||"",data.rank20||"",
+      ]);
       setPodium({ gold: data.podium_gold||"", silver: data.podium_silver||"", bronze: data.podium_bronze||"" });
     } else {
       setFinalistes(["","","","","","","",""]);
@@ -225,6 +231,10 @@ const [annonces, setAnnonces] = useState<{ id: string; title: string; message: s
       rank1: finalistes[0], rank2: finalistes[1], rank3: finalistes[2],
       rank4: finalistes[3], rank5: finalistes[4], rank6: finalistes[5],
       rank7: finalistes[6], rank8: finalistes[7],
+      rank9: finalistes[8], rank10: finalistes[9], rank11: finalistes[10],
+      rank12: finalistes[11], rank13: finalistes[12], rank14: finalistes[13],
+      rank15: finalistes[14], rank16: finalistes[15], rank17: finalistes[16],
+      rank18: finalistes[17], rank19: finalistes[18], rank20: finalistes[19],
       podium_gold: podium.gold, podium_silver: podium.silver, podium_bronze: podium.bronze,
     }, { onConflict: "competition_id,genre" });
     setSaving(false);
@@ -356,7 +366,8 @@ const [annonces, setAnnonces] = useState<{ id: string; title: string; message: s
   };
 
   const loadAnnonces = async () => {
-    const { data } = await supabase.from("announcements").select("id, title, message, active").order("created_at", { ascending: false });
+    const { data, error } = await supabase.from("announcements").select("id, title, message, active").order("created_at", { ascending: false });
+    console.log("annonces:", data, "error:", error);
     setAnnonces(data || []);
   };
 

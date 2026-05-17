@@ -215,7 +215,7 @@ useEffect(() => {
   </div>
 ) : (
   <div className="divide-y divide-gray-100 border border-gray-100 rounded-2xl overflow-hidden mb-8">
-    {filtered.map((athlete) => {
+    {[...filtered.filter(a => selected.includes(a.name)), ...filtered.filter(a => !selected.includes(a.name))].map((athlete) => {
       const isSelected = selected.includes(athlete.name)
       return (
         <button key={athlete.name} onClick={() => isOpen ? toggle(athlete.name) : null}
