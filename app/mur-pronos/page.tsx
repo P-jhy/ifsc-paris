@@ -10,6 +10,7 @@ const etapesLabels: Record<string, string> = {
 
 type PlayerCard = {
   user_id: string;
+
   username: string;
   avatar_url: string | null;
   total_points: number;
@@ -216,12 +217,12 @@ if (officiel) {
         </div>
 
         {/* Grille */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {cards.map((card) => (
             <div
               key={card.user_id}
-              className="card-container cursor-pointer"
-              style={{ height: "380px" }}
+              style={{ height: "320px" }}
+className="card-container cursor-pointer w-full"
               onClick={() => toggleFlip(card.user_id)}
             >
               <div className={`card-inner ${flipped[card.user_id] ? "flipped" : ""}`}>
