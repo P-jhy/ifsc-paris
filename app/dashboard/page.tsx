@@ -243,7 +243,7 @@ export default function Dashboard() {
       Mon profil
     </button>
     <button onClick={() => router.push("/chat")}
-  className="text-xs font-medium text-gray-900 border border-gray-200 rounded-full px-3 py-1.5 hover:bg-gray-50 transition">
+  className="text-sm font-medium text-gray-900 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 hover:bg-gray-100 transition text-center">
   💬 Chat
 </button>
     {isAdmin && (
@@ -284,51 +284,51 @@ export default function Dashboard() {
               const isPast = c.date < new Date();
 
               return (
-                <div key={idx} className={`px-5 py-4 transition ${isPast ? "bg-gray-50" : "bg-white hover:bg-gray-50"}`}>
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-4">
-                      <span className="text-2xl">{c.flag}</span>
-                      <div>
-                        <p className={`font-semibold ${isPast ? "text-gray-400" : "text-gray-900"}`}>{c.name}</p>
-                        <p className="text-xs text-gray-400">{c.date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
-                      </div>
+                <div key={idx} className={`px-4 py-4 transition ${isPast ? "bg-gray-50" : "bg-white hover:bg-gray-50"}`}>
+                  {/* Ligne 1 : flag + nom + date */}
+                  <div className="flex items-center gap-3 mb-3">
+                    <span className="text-2xl flex-shrink-0">{c.flag}</span>
+                    <div className="min-w-0">
+                      <p className={`font-semibold truncate ${isPast ? "text-gray-400" : "text-gray-900"}`}>{c.name}</p>
+                      <p className="text-xs text-gray-400">{c.date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
                     </div>
-                    <div className="flex gap-2 flex-wrap justify-end">
-                      <button
-                        onClick={() => pickedH
-                          ? router.push(`/mes-pronos?competition=${c.id}&genre=hommes`)
-                          : router.push(`/competition?competition=${c.id}&genre=hommes`)
-                        }
-                        className={`text-xs font-semibold rounded-full px-3 py-1.5 transition ${
-                          pickedH ? "bg-green-50 text-green-700 border border-green-200" : "bg-gray-900 text-white hover:bg-gray-700"
-                        }`}>
-                        {pickedH ? "✓ H" : "Phase 1 H"}
-                      </button>
-                      <button
-                        onClick={() => pickedF
-                          ? router.push(`/mes-pronos?competition=${c.id}&genre=femmes`)
-                          : router.push(`/competition?competition=${c.id}&genre=femmes`)
-                        }
-                        className={`text-xs font-semibold rounded-full px-3 py-1.5 transition ${
-                          pickedF ? "bg-green-50 text-green-700 border border-green-200" : "bg-gray-900 text-white hover:bg-gray-700"
-                        }`}>
-                        {pickedF ? "✓ F" : "Phase 1 F"}
-                      </button>
-                      <button
-                        onClick={() => router.push(`/podium?competition=${c.id}&genre=hommes`)}
-                        className={`text-xs font-semibold rounded-full px-3 py-1.5 transition ${
-                          pickedP2H ? "bg-amber-50 text-amber-700 border border-amber-200" : "bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100"
-                        }`}>
-                        {pickedP2H ? "✓ Podium H" : "🏆 Podium H"}
-                      </button>
-                      <button
-                        onClick={() => router.push(`/podium?competition=${c.id}&genre=femmes`)}
-                        className={`text-xs font-semibold rounded-full px-3 py-1.5 transition ${
-                          pickedP2F ? "bg-pink-50 text-pink-700 border border-pink-200" : "bg-pink-50 text-pink-700 border border-pink-200 hover:bg-pink-100"
-                        }`}>
-                        {pickedP2F ? "✓ Podium F" : "🏆 Podium F"}
-                      </button>
-                    </div>
+                  </div>
+                  {/* Ligne 2 : boutons sur 2 colonnes */}
+                  <div className="grid grid-cols-2 gap-2 mb-3">
+                    <button
+                      onClick={() => pickedH
+                        ? router.push(`/mes-pronos?competition=${c.id}&genre=hommes`)
+                        : router.push(`/competition?competition=${c.id}&genre=hommes`)
+                      }
+                      className={`text-xs font-semibold rounded-full px-3 py-1.5 transition text-center ${
+                        pickedH ? "bg-green-50 text-green-700 border border-green-200" : "bg-gray-900 text-white hover:bg-gray-700"
+                      }`}>
+                      {pickedH ? "✓ Phase 1 H" : "Phase 1 H"}
+                    </button>
+                    <button
+                      onClick={() => pickedF
+                        ? router.push(`/mes-pronos?competition=${c.id}&genre=femmes`)
+                        : router.push(`/competition?competition=${c.id}&genre=femmes`)
+                      }
+                      className={`text-xs font-semibold rounded-full px-3 py-1.5 transition text-center ${
+                        pickedF ? "bg-green-50 text-green-700 border border-green-200" : "bg-gray-900 text-white hover:bg-gray-700"
+                      }`}>
+                      {pickedF ? "✓ Phase 1 F" : "Phase 1 F"}
+                    </button>
+                    <button
+                      onClick={() => router.push(`/podium?competition=${c.id}&genre=hommes`)}
+                      className={`text-xs font-semibold rounded-full px-3 py-1.5 transition text-center ${
+                        pickedP2H ? "bg-amber-50 text-amber-700 border border-amber-200" : "bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100"
+                      }`}>
+                      {pickedP2H ? "✓ Podium H" : "🏆 Podium H"}
+                    </button>
+                    <button
+                      onClick={() => router.push(`/podium?competition=${c.id}&genre=femmes`)}
+                      className={`text-xs font-semibold rounded-full px-3 py-1.5 transition text-center ${
+                        pickedP2F ? "bg-pink-50 text-pink-700 border border-pink-200" : "bg-pink-50 text-pink-700 border border-pink-200 hover:bg-pink-100"
+                      }`}>
+                      {pickedP2F ? "✓ Podium F" : "🏆 Podium F"}
+                    </button>
                   </div>
                   <ProgressBar pickedH={!!pickedH} pickedF={!!pickedF} pickedP2H={!!pickedP2H} pickedP2F={!!pickedP2F} />
                 </div>
